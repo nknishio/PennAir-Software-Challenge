@@ -3,7 +3,7 @@ Detect solid shapes on a grassy background and mark their centers.
 
 Approach
 --------
-Colour thresholding is a trap here: one of the shapes is bright green, the same
+color thresholding is a trap here: one of the shapes is bright green, the same
 hue as the grass. What actually separates figure from ground is *texture* --
 grass is high-frequency noise, the shapes are perfectly flat fills. So we
 segment on local standard deviation of intensity: smooth pixels are shapes.
@@ -79,13 +79,13 @@ def classify(contour):
     return ({5: "pentagon", 6: "hexagon"}.get(n, f"{n}-gon")), approx
 
 
-def refine_by_colour(bgr, seed_contour, tol=40, pad=25):
+def refine_by_color(bgr, seed_contour, tol=40, pad=25):
     """Recover a shape's exact outline from a texture seed.
 
     The variance window blurs across each edge, so the seed is inset and its
     corners are rounded by the morphology. But each shape is a single flat
-    colour: sample that colour from the seed's interior and re-threshold the
-    surrounding patch on colour distance, which snaps to the true edge.
+    color: sample that color from the seed's interior and re-threshold the
+    surrounding patch on color distance, which snaps to the true edge.
     """
     h, w = bgr.shape[:2]
     x, y, bw, bh = cv2.boundingRect(seed_contour)
@@ -125,7 +125,7 @@ def detect(bgr, min_area=500):
         if bw >= 0.98 * w and bh >= 0.98 * h:
             continue
 
-        c = refine_by_colour(bgr, c)
+        c = refine_by_color(bgr, c)
         area = cv2.contourArea(c)       # measure the refined outline, not the seed
 
         m = cv2.moments(c)
