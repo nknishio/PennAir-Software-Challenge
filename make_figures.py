@@ -222,4 +222,36 @@ for bg_name, bg_img in tb.backgrounds().items():
 cv2.imwrite(f"{OUT}/11_background_suite.png",
             np.vstack([np.hstack(bg_tiles[i:i + 3]) for i in range(0, 9, 3)]))
 
-print("wrote 11 figures to", OUT)
+# 12 -- poster frames for the README clips ------------------------------------
+# The clips are committed; the full-length outputs are gitignored. So these read
+# from the clips, and a fresh checkout can regenerate them.
+CLIPS = [
+    ("output_dynamic_CLIP.mp4", 155, "clip_02_video.png"),
+    ("output_hard_CLIP.mp4", 130, "clip_03_agnostic.png"),
+    ("output_hard_3d_CLIP.mp4", 130, "clip_04_3d.png"),
+]
+posters = 0
+for src, frame_no, name in CLIPS:
+    cap = cv2.VideoCapture(src)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
+    ok, f = cap.read()
+    cap.release()
+    if not ok:
+        print(f"  skipped {name}: could not read {src}")
+        continue
+    w = 900
+    h = int(f.shape[0] * w / f.shape[1])
+    img = (cv2.resize(f, (w, h), interpolation=cv2.INTER_AREA) * 0.82).astype(np.uint8)
+    cx, cy, r = w // 2, h // 2, int(h * 0.11)
+    halo = img.copy()
+    cv2.circle(halo, (cx, cy), r, (255, 255, 255), -1)
+    img = cv2.addWeighted(halo, 0.30, img, 0.70, 0)
+    cv2.circle(img, (cx, cy), r, (255, 255, 255), max(2, r // 18), cv2.LINE_AA)
+    t = int(r * 0.52)
+    cv2.fillPoly(img, [np.array([[cx - t // 2, cy - t], [cx - t // 2, cy + t],
+                                 [cx + int(t * 0.95), cy]], np.int32)],
+                 (255, 255, 255), cv2.LINE_AA)
+    cv2.imwrite(f"{OUT}/{name}", img)
+    posters += 1
+
+print(f"wrote 11 figures + {posters} clip posters to", OUT)

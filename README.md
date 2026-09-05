@@ -13,6 +13,8 @@ making the whole thing work on **any** background, and finally reporting where e
 | **Background-agnostic** — any colour/texture | **97.8%** recall over 9 backgrounds × 2 fill types · 0 misclassifications |
 | **3D** — metric X, Y, Z from the camera | depth to **0.3%** of truth · a position on **every** frame |
 
+**See it running** — ▶ [video](output_dynamic_CLIP.mp4) · ▶ [any background](output_hard_CLIP.mp4) · ▶ [in 3D](output_hard_3d_CLIP.mp4)
+
 ---
 
 ## How to run
@@ -223,7 +225,9 @@ know otherwise.
 
 ### What memory buys
 
-![tracking](figures/04_video_tracking.png)
+[![Watch: tracking through the grass footage](figures/clip_02_video.png)](output_dynamic_CLIP.mp4)
+
+*▶ [`output_dynamic_CLIP.mp4`](output_dynamic_CLIP.mp4) — 10 s. Persistent IDs, motion trails, and shapes recovering their names after an occlusion.*
 
 The tracker gives each shape a persistent ID, a smoothed centre, a motion trail, and a **voted
 label** — the majority over ~1.5 s, counting only frames where the whole shape is visible.
@@ -358,7 +362,9 @@ asphalt speckle is dense, so the water found a gap and got caught on a nearby sp
 instead of the real edge. Centre and area stay accurate; it's the vertex count that suffers,
 which is why the trapezoid is the shape most often misnamed.
 
-![hard result](figures/06_hard_result.png)
+[![Watch: asphalt and gradient fills](figures/clip_03_agnostic.png)](output_hard_CLIP.mp4)
+
+*▶ [`output_hard_CLIP.mp4`](output_hard_CLIP.mp4) — 10 s, the same segment as the 3D clip below, so the two can be compared directly.*
 
 ### Proving it, on backgrounds nobody supplied
 
@@ -411,6 +417,10 @@ K = [[2564.3186869,      0,       0],          the circle has radius 10 in
      [     0,      2569.70273111, 0],          the surface is flat
      [     0,           0,        1]]
 ```
+
+[![Watch: metric coordinates on every shape](figures/clip_04_3d.png)](output_hard_3d_CLIP.mp4)
+
+*▶ [`output_hard_3d_CLIP.mp4`](output_hard_3d_CLIP.mp4) — the same 10 s as Part 3's clip, now carrying X, Y and Z. Watch the depth source in the corner switch between `[circle]` and `[learned]` as the ruler leaves and re-enters view; the number barely moves.*
 
 ![3D result](figures/07_3d_result.png)
 
