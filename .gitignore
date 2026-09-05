@@ -5,3 +5,11 @@ PennAir 2024 App Dynamic.mp4
 PennAir 2024 App Dynamic Hard.mp4
 VIDEO_DETECTION.md
 output_hard.mp4
+output_hard_3d.mp4
+track_log_3d.csv
+track_log_hard.csv
+
+# ROS 2 build artefacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/

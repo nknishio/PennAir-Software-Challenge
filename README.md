@@ -1,23 +1,71 @@
 # PennAir 2024 Software Challenge — Shape Detection
 
 Detecting shapes on a grassy background, marking their centres, tracking them through video,
-and then making the whole thing work on **any** background.
+making the whole thing work on **any** background, and finally reporting where each shape is in
+**metres and inches** rather than pixels.
 
 ![static result](figures/02_static_pipeline.png)
 
 | Deliverable | Result |
 |---|---|
 | **Static image** — detect shapes, mark centres | 5/5 detected, classified and centred |
-| **Video** — streamed frame by frame | **42 fps** on a 30 fps source · recall **98.0%** · classification **98.8%** |
+| **Video** — streamed frame by frame | recall **98.0%** · classification **98.8%** · 30 fps on a 30 fps source |
 | **Background-agnostic** — any colour/texture | **97.8%** recall over 9 backgrounds × 2 fill types · 0 misclassifications |
+| **3D** — metric X, Y, Z from the camera | depth to **0.3%** of truth · a position on **every** frame |
+
+---
+
+## How to run
 
 ```bash
-pip install opencv-python
-python3 detect_shapes.py            # static image
-python3 detect_video.py             # video, with tracking
-python3 detect_video_agnostic.py    # any background
-python3 test_backgrounds.py         # the agnosticism test suite
+pip install opencv-python numpy
 ```
+
+Four deliverables, four commands. Each writes an annotated result you can look at.
+
+| # | Deliverable | Run it | Writes |
+|---|---|---|---|
+| 1 | **Picture** | `python3 detect_shapes.py` | `output_static.png` |
+| 2 | **Video** | `python3 detect_video.py` | `output_dynamic.mp4`, `track_log.csv` |
+| 3 | **Background-agnostic** | `python3 detect_video_agnostic.py` | `output_hard.mp4`, `track_log_hard.csv` |
+| 4 | **Background-agnostic 3D** | `python3 detect_video_3d.py` | `output_hard_3d.mp4`, `track_log_3d.csv` |
+| 4′ | …on a single photo | `python3 detect_3d.py` | `output_static_3d.png` |
+| 5 | **ROS 2** | `ros2 launch pennair_vision shapes.launch.py` | live topics — see [Part 5](#part-5--ros-2) |
+
+Every script takes its input as the first argument, so each runs on your own
+footage — and `0` means the webcam:
+
+```bash
+python3 detect_video_3d.py 0                       # live camera, in 3D
+python3 detect_3d.py my_photo.png --units m        # one image, metres
+python3 detect_video_agnostic.py clip.mp4 --scale 0.5 --no-video
+python3 detect_shapes_agnostic.py --debug          # dump the intermediate maps
+```
+
+Useful flags: `--max-frames N` to stop early, `--no-video` to measure without
+encoding, `--scale` to downsample, and for the 3D scripts `--units in|ft|m` and
+`--pp given|center` (see [the principal point](#a-note-on-the-principal-point)).
+
+### Testing each step
+
+```bash
+python3 run_tests.py            # all four steps, ~50 s
+python3 run_tests.py --step 4   # just the 3D one; --step is repeatable
+python3 run_tests.py --full     # whole videos, not the first 150 frames
+```
+
+The exit code is the number of failed steps. What each one checks:
+
+| Step | Checks | Ground truth from |
+|---|---|---|
+| 1 picture | five shapes found, all five named, centres inside the image | the supplied still |
+| 2 video | ≥4.5 shapes tracked per frame, bounded per-frame cost, identities stable | the grass footage |
+| 3 background-agnostic | ≥95% recall and 0 misclassifications over 9 synthetic backgrounds × 2 fills, then the asphalt footage | scenes generated here, so truth is exact |
+| 4 3D | depth and lateral position against known metric truth, the scale bootstrap, resolution invariance, the projection algebra, the operating envelope, and that a real altitude change is still followed | scenes projected *from* metric truth through K |
+
+Steps 3 and 4 can also be run on their own: `python3 test_backgrounds.py` and
+`python3 test_pose3d.py`. Throughput is reported rather than graded, because it
+is as much a property of the machine as of the code.
 
 ---
 
@@ -34,6 +82,8 @@ observation drives everything:
    lose it or rename it.
 5. For arbitrary backgrounds, replace every assumption about what the background and the shapes
    *look like* with measurements that are **relative to the frame itself**.
+6. For 3D, turn each centre into **metric coordinates** — the intrinsics give the ray, and the
+   circle's known radius gives the distance along it.
 
 ---
 
@@ -45,7 +95,14 @@ observation drives everything:
 | [`detect_video.py`](detect_video.py) | Streaming pipeline + tracker |
 | [`detect_shapes_agnostic.py`](detect_shapes_agnostic.py) | Background-agnostic redesign |
 | [`detect_video_agnostic.py`](detect_video_agnostic.py) | Streaming version of the above |
+| [`pose3d.py`](pose3d.py) | The camera model: pixel centres → metric X, Y, Z |
+| [`detect_3d.py`](detect_3d.py) | Static image, in three dimensions |
+| [`detect_video_3d.py`](detect_video_3d.py) | Streaming, in three dimensions |
 | [`test_backgrounds.py`](test_backgrounds.py) | Renders shapes on 9 synthetic backgrounds and scores the result |
+| [`test_pose3d.py`](test_pose3d.py) | Builds scenes from known metric truth and asks the pipeline to recover it |
+| [`run_tests.py`](run_tests.py) | Runs all four steps end to end |
+| [`ros2_ws/src/pennair_msgs/`](ros2_ws/src/pennair_msgs) | ROS 2 interfaces: `ShapeDetection`, `ShapeDetectionArray` |
+| [`ros2_ws/src/pennair_vision/`](ros2_ws/src/pennair_vision) | ROS 2 nodes, launch file and RViz config |
 | [`make_figures.py`](make_figures.py) | Regenerates every figure in this README |
 
 **Reports** — short: [`STATIC_IMAGE_REPORT.md`](STATIC_IMAGE_REPORT.md) ·
@@ -256,7 +313,7 @@ flat and gradient fills. Ground truth is exact because the scene is generated.
 
 **Recall 97.8% (88/90) · 0 misclassifications · mean centre error 0.3 px**, on one unchanged
 parameter set covering solid colours, smooth gradients, sand, gravel, grass, wood grain and a
-checkerboard.
+checkerboard. The 13 false positives are all checkerboard cells, discussed below.
 
 ### What went wrong here
 
@@ -266,9 +323,295 @@ checkerboard.
 | **A region swallowed 1.8M of 2.07M pixels** | Filling the edge map's outer contour — on textured ground the edges form one connected web spanning the frame | Read enclosure as the *complement* of the edge map |
 | **Triangle → hexagon, 13% too small** | Watershed clearance too small: sharp corners poked outside the cleared band and were labelled certain background | Clearance is genuinely two-sided (too large leaks across weak edges, overshooting by 37%). Resolved using convexity: try widest first, accept the first result that is still convex |
 | **195 tracks for 5 shapes** | Accepting a candidate on *either* verifier imported the weaker one's false positives | The two verifiers aren't interchangeable — on textured ground smoothness is decisive, on smooth ground only the edge test says anything. Pick per candidate by measuring local roughness → **zero** false positives |
-| **64 false positives on a checkerboard** | Its cells are genuinely shape-like: uniform inside, bounded by a strong edge | What gives them away is that there are dozens, all alike. A large group sharing a class and size is read as background pattern |
+| **64 false positives on a checkerboard** | Its cells are genuinely shape-like: uniform inside, bounded by a strong edge | What gives them away is that there are dozens, all alike. A large group sharing a class and size is read as background pattern → 13, all of them cells clipped by the frame edge, which vary in size and so never form a group |
 
 ---
+
+---
+
+## Part 4 — Three dimensions
+
+Everything so far answers *where in the image*. A drone needs *where in the world*. The brief
+supplies exactly enough to close that gap:
+
+```
+K = [[2564.3186869,      0,       0],          the circle has radius 10 in
+     [     0,      2569.70273111, 0],          the surface is flat
+     [     0,           0,        1]]
+```
+
+![3D result](figures/07_3d_result.png)
+
+Intrinsics turn a pixel into a **ray**; the known radius fixes **how far along it** the shape
+sits. Two lines of algebra, and the pipeline's output stops being pixel coordinates:
+
+```
+Z = R · √(π · fx · fy / A_px)          depth, from the circle's pixel area
+X = (u − cx) · Z / fx                  then the ray, scaled to that depth
+Y = (v − cy) · Z / fy
+```
+
+| | Static image | Hard video (1841 frames) |
+|---|---|---|
+| Plane depth | **318.4 in** (26.5 ft) | **251.7 in** (21.0 ft) |
+| Frames with a position | 1/1 | **1841/1841 — 100%** |
+| Measured by the circle · by a learned ruler | 1 · 0 | 1150 · 660 |
+| Steadiness, camera holding altitude | — | sd **0.34%**, median frame **0.02%** off |
+
+### Three choices worth defending
+
+**Depth from area, not from a radius.** A circle at distance projects to an ellipse of
+semi-axes `fx·R/Z` and `fy·R/Z`, so its area is `π·fx·fy·R²/Z²`. Reading `Z` off that uses
+every boundary pixel the contour has; reading it off a measured radius uses one or two of them.
+It also generalises for free — rewritten for an arbitrary metric area `A_m`, the same relation
+is `Z = √(fx·fy·A_m/A_px)`, which is what the bootstrap below runs on.
+
+**Intrinsics scale with the image.** `fx ≈ 2564 px` is a measurement *in pixels*, and it
+belongs to the 1920-wide footage. The supplied still is 960 wide. Using K unchanged on both
+would report the still twice as far away as it is, and `--scale 0.5` would silently change the
+answer. [`Camera.for_frame`](pose3d.py) scales K by the frame's own width, so one calibration
+covers every resolution.
+
+**The circle is corroborated, not trusted.** Depth initially rested on the classifier saying
+"circle". But a mistake there does not *lose* the scale, it **falsifies** it: a regular pentagon
+fills 0.757 of its circumcircle, so a pentagon that size read as the 10 in circle reports the
+scene ~15% **further away** than it is, silently and with no symptom. So the label is checked against a measurement
+that fails differently — contour area over the area of its smallest enclosing circle. On the
+supplied footage the circle scores **0.947–0.957** and the runner-up **0.753**, a margin wide
+enough that the threshold is not a tuned number. Circularity `4πA/P²` would have been the
+obvious second test and is the wrong one here: it is built on perimeter, which a ragged
+boundary inflates, so it is weakest exactly when segmentation is shaky. Area over area is
+stable.
+
+> Same habit as the circle test in Part 1 and the tracker's matching in Part 2: when one
+> signal carries too much weight, add a second that fails differently.
+
+### When the ruler leaves the frame
+
+One object has a known size, and it is not visible in every frame — it drifts off-screen, and
+in the hard footage it spends a stretch sitting on top of the rectangle.
+
+The way out is that the ruler doesn't have to be *present*, only to have been present. While
+the circle is in view its depth also reveals the true size of everything else on the plane —
+one division per shape — and a shape whose metric size is known is a ruler from then on. So the
+scale is bootstrapped once and afterwards carried by whichever shapes happen to be in frame,
+keyed by the tracker's identities. The right-hand panel above is a frame measuring `[learned]`,
+with the circle occluding the rectangle; it agrees with the `[circle]` frame beside it to
+0.4 in in 21 ft.
+
+Over 1841 frames of the hard footage the circle measured 1150 and learned rulers covered
+660 — **a position on every frame**, and the overlay always says which.
+
+Only a *whole, unobstructed* outline may serve as a ruler, for the same reason only a whole
+outline may vote on classification in Part 2: area is the entire measurement, so a shape half
+out of frame would read as twice its true distance. Coasting, clipped and occluded tracks are
+all excluded.
+
+### Which stand-in to believe
+
+Stand-in rulers are where the depth went wrong. Taking the median of whatever is in view is the
+obvious way to fuse them and it is not good enough: once the circle has gone there are usually
+just **two** rulers, so the median is their average and one bad reading moves the answer by half
+its error. The first full run had 1.3% of frames more than 5% out — all single frames, all
+carried by a learned ruler.
+
+Listing those frames alongside every estimate that produced them showed the same thing every
+time: **a correct estimate was sitting right next to the wrong one.**
+
+```
+frame 335   rectangle -> 251.6 in  (size history steady to 0.2%)
+            trapezoid -> 292.8 in  (size history wobbles by 19.3%)   <- averaged in
+frame 682   pentagon  -> 251.8 in  (0.2%)
+            pentagon  -> 222.5 in  (29.7%)                           <- averaged in
+```
+
+So don't average the disagreement away — **pick**, on two signals that fail differently:
+
+- **How steady that ruler has been.** A ruler is only as good as the length marked on it. The
+  interquartile spread of each shape's own size estimates is already in the memory: the good
+  rulers sit at 0.2–0.7%, the bad ones at 13–30%. It is not a close call.
+- **Continuity.** The plane does not teleport. Of the rulers that survive, believe the one
+  nearest the last known depth, and rate-limit the result — at 30 fps, a 5% jump is a climb
+  faster than 100 in/s.
+
+| Fusion rule | sd | frames >5% out | worst frame |
+|---|---|---|---|
+| median of everything in view | 1.57% | 1.30% | **+44%** |
+| + rate limit | 0.80% | 0.87% | +10.3% |
+| **+ pick by steadiness and continuity** | **0.34%** | **0.05%** | **+5.0%** |
+
+*All three over the same 1841 frames, against the median depth — the camera holds altitude
+throughout, so any spread is error.*
+
+Continuity could in principle lock in a drift, which is why it only ever chooses *between*
+independent measurements and never invents one, and why the circle overrides it outright
+whenever it is visible. And a rate limit that also flattened a genuine climb would be worse than
+the problem it solves, so `test_pose3d.py` flies one: 80 in of altitude in 17 frames, tracked to
+**0.37%**.
+
+### Proving it, since nobody measured the drone
+
+The footage cannot test this. No one recorded how far the camera was from the ground, so the
+supplied videos can only show that the depth comes out *stable* — which a constant-valued bug
+would also achieve.
+
+So [`test_pose3d.py`](test_pose3d.py) builds the scene from the other end: shapes are defined
+in inches on a plane at a chosen depth and projected **through K** to make the image, then the
+pipeline is asked to recover what went in. Ground truth is exact because it is the input.
+
+![3D against truth](figures/08_3d_truth.png)
+
+| Check | Result |
+|---|---|
+| Depth, over 12 scenes × 3 backgrounds × flat and gradient fills | mean error **0.71 in — 0.3%** |
+| Lateral position X, Y | mean error **0.35 in** |
+| Scale survives the circle leaving view | recovered from a learned ruler, same value |
+| An 80 in climb over 17 frames | tracked to **0.37%** — the rate limit does not fight the drone |
+| Same scene at 1920 and at 960 | agree to 1% — intrinsics really do scale |
+| `project(backproject(u,v,Z)) == (u,v)` | exact to 0.0 px |
+
+### The operating envelope
+
+A drone changes altitude, so "how accurate" is only half the answer — the other half is **over
+what range**. The algebra is exact at any distance; the detector is not. Sweeping depth until
+it fails:
+
+| Distance | Circle radius | Shapes found | Depth error |
+|---|---|---|---|
+| 150–400 in (12–33 ft) | 171 → 64 px | **15/15** | 0.13–0.34% |
+| 500 in (42 ft) | 51 px | 6/15 | 0.65% |
+| 600 in (50 ft) | 43 px | 0/15 | — |
+
+Reliable out to about **33 ft at 1080p**, where the circle is ~64 px in radius. Past that it is
+the *detector* that gives out, not the camera model, and for a specific reason: the window used
+to judge whether an interior is smooth is a fixed size, so once a shape is small enough that
+the window straddles its boundary, its interior stops measuring as smooth. Reported rather than
+asserted away, because it is the number that says how high the drone may fly.
+
+### What went wrong here
+
+| Problem | Cause | Fix |
+|---|---|---|
+| **Nothing found past 400 in** | Interior smoothness was sampled 4 px inside the outline, while the window doing the measuring is ~21 px wide. Harmless on a shape 200 px across; decisive on one 60 px across, where that contaminated band is most of what gets measured and the interior reads as rough as the ground | Sample the innermost quarter instead, so the band scales with the shape. Range 250 → 400 in, and +2 triangle detections per 20 frames on the *real* footage. It costs 7 extra false positives on the checkerboard — measured, and reported above rather than netted out |
+| **A pentagon could have been the ruler** | Depth rested entirely on one classifier label, and a mistake reports the scene 15% further away with no symptom | Corroborate with area ÷ enclosing-circle area (see above) |
+| **Depth lost whenever the circle was occluded** | Only one object had a known size | While the circle is up it sizes everything else; those become rulers |
+| **1.3% of frames off by up to 44%** | Stand-in rulers were fused by median. With two in view that is an average, so one bad area moved the answer by half its error | Pick rather than average — by how steady each ruler's own measured size has been, and by continuity with the previous frame. 44% → 5.0% worst case, sd 1.57% → 0.34% |
+| **Still and video disagreed on distance** | K belongs to 1920-wide footage; the still is 960 wide | Scale K with the frame in `Camera.for_frame` |
+| **One synthetic scene reports no depth at all** | Grass plus a gradient fill frays the circle's boundary badly enough that it scores 0.78 — below the gate | Left as a refusal. A single frame has no second ruler to fall back on, and no depth beats a wrong one. The video path does have a fallback, and takes it |
+
+### A note on the principal point
+
+The supplied K has `cx = cy = 0`, which places the optical axis at the **top-left pixel** rather
+than the image centre. That is used exactly as given, so X and Y are measured from the top-left
+corner's line of sight and come out large and single-signed — the circle in the hard footage
+sits at X = +103 in, Y = +19 in. A calibrated camera would normally report `cx ≈ 960, cy ≈ 540`,
+which recentres those on the frame; `--pp center` does that. **Z is identical either way**,
+since depth depends only on `fx` and `fy` — which is worth knowing, because it means the choice
+cannot quietly corrupt the altitude. `test_pose3d.py` asserts it.
+
+---
+
+## Part 5 — ROS 2
+
+The pipeline so far is a program you run. A drone needs it to be a *node* — something that
+receives frames from wherever they come from and publishes what it found, so the rest of the
+stack can act on it.
+
+```mermaid
+flowchart LR
+    V["<b>video_publisher</b><br/>file or camera"] -->|/camera/image_raw| D
+    V -->|/camera/camera_info<br/><i>K</i>| D["<b>shape_detector</b><br/>detect → track → pose3d"]
+    D -->|/shapes/detections| O1["outlines + metric XYZ"]
+    D -->|/shapes/markers| O2["RViz"]
+    D -->|/shapes/image_annotated| O3["rqt_image_view"]
+    style V fill:#1f6f43,color:#fff
+    style D fill:#b3541e,color:#fff
+```
+
+**The port is thin, and that is the point.** [`detect_video_3d.py`](detect_video_3d.py) was
+already built around a streaming contract — one frame in at a time, `detect()` a pure function
+of that frame, all state in the tracker and the scale memory. A subscriber callback is that
+same shape, so the body of the detector node is the six lines lifted verbatim from
+`run()`:
+
+```python
+detections, _, _ = algo.detector.detect(frame)              # stateless, this frame only
+tracks = self.tracker.update(detections, self.frame_idx)    # causal, past frames only
+obs = [(t.id, t.label, t.area, algo.video3d.measurable(t, frame.shape),
+        algo.pose3d.circle_score(t.contour)) for t in tracks]
+Z, src = self.plane.update(obs)
+for t in tracks:
+    t.xyz = self.plane.locate(t.center, Z) if Z else None
+```
+
+Everything else in the package is message plumbing. **No existing module was modified** — the
+algorithm stays at the repository root and is imported from there, so `run_tests.py` and every
+command above still work exactly as documented.
+
+### Topics
+
+| Topic | Type | What it carries |
+|---|---|---|
+| `/camera/image_raw` | `sensor_msgs/Image` | the frame |
+| `/camera/camera_info` | `sensor_msgs/CameraInfo` | **K**, scaled to the published image |
+| `/shapes/detections` | `pennair_msgs/ShapeDetectionArray` | outline, track ID, metric XYZ, depth provenance |
+| `/shapes/detections_2d` | `vision_msgs/Detection2DArray` | the same, in a standard type |
+| `/shapes/markers` | `visualization_msgs/MarkerArray` | centres, labels and **outlines in 3D** |
+| `/shapes/image_annotated` | `sensor_msgs/Image` | the familiar overlay |
+
+Positions are published in **metres** (REP-103); the algorithm works in inches and converts at
+the publish boundary only. The outline in `ShapeDetection` is the refined contour itself, not a
+polygon approximation of it — the same points the centre and the area were measured from. For
+RViz those points are back-projected onto the plane, which is exact because the plane is
+fronto-parallel, so the marker is the shape's real outline in metres rather than a billboard.
+
+### Three decisions worth defending
+
+**Intrinsics travel on a topic.** The detector is not told in advance what calibration it is
+working with; it reads K off `/camera/camera_info`. That is idiomatic ROS, and here it also
+removes a specific way to be silently wrong. `scale:=0.5` downsamples frames so a VM can carry
+the bandwidth — and intrinsics are measured *in pixels*, so a resized image needs a resized K.
+`Camera.for_frame` already did that work in Part 4; the publisher calls it on the frame it is
+about to send. Without it, half-scale streaming would report every shape at twice its distance
+and nothing would look obviously broken.
+
+**Dropping frames is the correct behaviour.** Both subscriptions use best-effort, depth-1 QoS.
+The 3D pipeline runs ~12 fps against a publisher that does not wait for it, so the node always
+works on the newest frame and discards the backlog. A reliable, deep queue would instead
+accumulate unbounded lag and confidently report positions for a scene that had already moved
+on. This is also the first time the streaming contract is genuinely *tested* rather than merely
+respected: frames really do arrive asynchronously now.
+
+**Two packages, not one.** Custom `.msg` files can only be generated from an `ament_cmake`
+package, so the interfaces live in `pennair_msgs` and the nodes in `pennair_vision`.
+
+### Running it
+
+```bash
+cd ros2_ws && colcon build --symlink-install && source install/setup.bash
+
+ros2 launch pennair_vision shapes.launch.py \
+    video:=$HOME/pennair/"PennAir 2024 App Dynamic Hard.mp4" \
+    principal_point:=center rviz:=true
+```
+
+```bash
+ros2 topic echo /shapes/detections --once     # 5 detections, plane_depth ~6.39
+ros2 run rqt_image_view rqt_image_view        # -> /shapes/image_annotated
+python3 -m pytest src/pennair_vision/test/test_ros_pipeline.py -s
+```
+
+**The number that proves the port.** The CLI reports a plane depth of 251.74 in on this footage.
+`/shapes/detections` must show `plane_depth ≈ 6.39` m. Anything else points at the K scaling or
+the unit conversion — in this package — rather than at the detector.
+
+### What went wrong here
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `cv_bridge` fails to import with an ABI error | Ubuntu 24.04 ships `cv_bridge` compiled against the *system* NumPy and OpenCV. A `pip install opencv-python` pulls NumPy 2.x alongside it and the two disagree | Install `python3-opencv` from apt and never pip into the system Python. PEP 668 is trying to tell you this; do not reach for `--break-system-packages` |
+| Every RViz marker sits off to one side | The supplied K has `cx = cy = 0`, so X and Y are measured from the top-left pixel's ray — as documented in [the principal-point note](#a-note-on-the-principal-point) | `principal_point:=center`. Depth is unchanged either way |
+| 1080p at 30 Hz saturates DDS in a VM | Raw `sensor_msgs/Image` at that size is 186 MB/s | Default `scale: 0.5`, `rate: 10` → ~15 MB/s. Safe only because K scales with the image |
 
 ## How it was built
 
@@ -299,23 +642,31 @@ That is the circle test (circularity + vertex-count agreement), the tracker's ma
 
 ## Results
 
-| | Static | Video (grass) | Video (hard) |
-|---|---|---|---|
-| Detector | `detect_shapes.py` | `detect_video.py` | `detect_video_agnostic.py` |
-| Shapes found | 5/5 | recall 98.0% | recall 93.3% |
-| Classification | 5/5 | 98.8% | 89.3% |
-| Centre accuracy | — | median 2.0 px | median 2.2 px |
-| False positives | 0 | precision 98.0% | 0 |
-| Throughput (1080p) | — | **42 fps** | 12 fps |
+| | Static | Video (grass) | Video (hard) | Video (hard, 3D) |
+|---|---|---|---|---|
+| Detector | `detect_shapes.py` | `detect_video.py` | `detect_video_agnostic.py` | `detect_video_3d.py` |
+| Shapes found | 5/5 | recall 98.0% | recall 93.3% | recall 93.3% |
+| Classification | 5/5 | 98.8% | 89.3% | 89.3% |
+| Centre accuracy | — | median 2.0 px | median 2.2 px | median 2.2 px |
+| False positives | 0 | precision 98.0% | 0 | 0 |
+| Metric position | — | — | — | **every frame** |
+| Depth error vs truth | — | — | — | **0.3%** (synthetic) |
+| Throughput (1080p) | — | 30 fps | 12 fps | 12 fps |
 
-Outputs: `output_static.png`, `output_dynamic.mp4`, `output_hard.mp4`, plus a per-frame CSV
-(`frame, track_id, shape, cx, cy, area, state, confidence`).
+Throughput is whatever the machine gives you; the numbers above are from one laptop and
+`run_tests.py` reports yours. The 3D stage is free — it adds one square root and two divisions
+per shape, and does not move the detection or classification numbers at all, which is the point
+of keeping it a separate stage.
+
+Outputs: `output_static.png`, `output_static_3d.png`, `output_dynamic.mp4`, `output_hard.mp4`,
+`output_hard_3d.mp4`, plus a per-frame CSV (`frame, track_id, shape, cx, cy, area, state,
+confidence`) that gains `X_in, Y_in, Z_in, depth_source` in the 3D pipeline.
 
 ## Trade-offs: which one to use
 
 | | Specialised | Agnostic |
 |---|---|---|
-| Known textured ground, flat shapes | **98.8% class · 42 fps** | 86.6% · 12 fps |
+| Known textured ground, flat shapes | **98.8% class · 30 fps** | 86.6% · 12 fps |
 | Asphalt + gradient fills | 4/5, misnamed | **93.3%, correct** |
 | Smooth or unknown background | fails | **works** |
 
@@ -328,6 +679,11 @@ the current settings, so it is reported as a real weakness rather than a solved 
 **Both are kept**, because they are better at different jobs. A drone in flight does not know
 what it is flying over, which is the case the agnostic version exists for.
 
+The 3D stage sits on top of the agnostic one for the same reason, and it is deliberately a
+*layer* rather than a rewrite: `detect_video_3d.py` imports the tracker and the detector
+unchanged and adds a stage after them. Detection quality and calibration quality are then
+independently testable, and the new code cannot perturb a pipeline that already worked.
+
 ## Known limits
 
 - Occluded classification needs a prior clean view of the shape.
@@ -337,6 +693,16 @@ what it is flying over, which is the case the agnostic version exists for.
 - The convex-hull occlusion recovery assumes convex shapes — true of all five here.
 - No ego-motion compensation: velocities are image-space while the camera itself pans.
 
-The natural next step for real drone use isn't better detection — it's projecting centres into
-**world coordinates**, which needs camera intrinsics and pose. The pixel centre this produces is
-the input to that, not the end of it.
+And on the 3D stage specifically:
+
+- **Fronto-parallel** — one depth for the whole plane. A tilted plane would need a per-shape
+  depth or a proper plane fit; the code has the pieces (`Camera.metric_area` inverts to a
+  per-shape Z) but the assumption is not currently checked.
+- **Camera frame, not world frame.** These are (X, Y, Z) relative to the camera. Converting to
+  world coordinates needs the drone's pose — attitude and position — which the brief does not
+  supply. That is now the only missing input, not a missing algorithm.
+- **The circle must appear at least once**, or there is no scale at all. Everything after that
+  is carried forward.
+- **No lens distortion model.** K is given without distortion coefficients, so none is applied;
+  a real wide-angle lens would need `cv2.undistort` before any of this.
+- **Range is capped by the detector at ~33 ft** at 1080p, measured above — not by the maths.

@@ -297,7 +297,13 @@ def verify(mag, energy, contour):
     outside = cv2.distanceTransform(255 - filled, cv2.DIST_L2, 3)
     inside = cv2.distanceTransform(filled, cv2.DIST_L2, 3)
     ring = (outside > 10) & (outside <= 30)
-    core = inside > 4
+    # The interior band has to scale with the shape. `energy` is measured through
+    # a window ~21 px wide, so a fixed 4 px inset samples a band that is still
+    # half boundary -- harmless on a shape 200 px across, decisive on one 60 px
+    # across, where that contaminated band is most of what gets measured and the
+    # interior reads as rough as the ground. Taking the innermost quarter instead
+    # keeps the sample clear of the outline at every size.
+    core = inside > max(4.0, 0.25 * float(inside.max()))
 
     on = sub_mag[rim > 0]
     around = sub_mag[ring]
