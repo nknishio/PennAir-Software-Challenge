@@ -103,6 +103,7 @@ observation drives everything:
 | [`run_tests.py`](run_tests.py) | Runs all four steps end to end |
 | [`ros2_ws/src/pennair_msgs/`](ros2_ws/src/pennair_msgs) | ROS 2 interfaces: `ShapeDetection`, `ShapeDetectionArray` |
 | [`ros2_ws/src/pennair_vision/`](ros2_ws/src/pennair_vision) | ROS 2 nodes, launch file and RViz config |
+| [`ROS2_SETUP.md`](ROS2_SETUP.md) | Building the ROS 2 environment from scratch, step by step |
 | [`make_figures.py`](make_figures.py) | Regenerates every figure in this README |
 
 **Reports** — short: [`STATIC_IMAGE_REPORT.md`](STATIC_IMAGE_REPORT.md) ·
@@ -303,6 +304,60 @@ blur and cancels out, texture does not.
 The organising principle is **pairs of cues that fail in opposite circumstances**, with the
 detector choosing between them from measurements rather than from a setting.
 
+### How the watershed refinement works
+
+Replacing the colour model was the biggest of those changes, so it's worth seeing.
+
+![watershed](figures/09_watershed.png)
+
+Picture the image as a landscape where edges are ridges and flat areas are valleys. Let water
+rise from two marked places at once, and where the two floods meet, a dam forms — always along
+a ridge, which is to say **along the strongest edge**.
+
+We supply the markers: **green** is "certainly inside the shape" (the rough seed, eroded a
+little for safety), **red** is "certainly background", and **white** is "you decide". The flood
+settles the white band, and the dam that forms there is the outline.
+
+The point is that watershed **never asks what colour anything is** — only where the strongest
+edge between the two markers lies. That pentagon runs navy to yellow, so its average colour is
+a murky green that appears nowhere in it and the old colour test is helpless; watershed doesn't
+care. Note how little the seed contributed: 24,003 of the shape's 37,400 pixels, rounded and
+missing every corner. It's a hint about where to start flooding, not an answer.
+
+**But how does a rounded green blob become a sharp-cornered pentagon?** Because the marker's
+outline never reaches the answer. What shapes the result is the *terrain* the water runs over:
+
+![flood](figures/10_flood.png)
+
+Panel 2 is the gradient map — bright means a ridge that is hard to cross, dark means easy
+going. The pentagon's edge is a razor-sharp bright outline with clean corners, and *that* is
+the mould. The rounded green blob is just the puddle you start pouring from.
+
+Watershed floods easy terrain first and leaves the hardest for last. The pentagon's inside is
+almost black in panel 2 — near-zero gradient — so water races through it and runs right up into
+every corner. The edge is the brightest thing in frame, so it is decided last, and the corner
+belongs to the *inside* flood because reaching it from outside would mean climbing the ridge
+first. Concretely: the green marker is 21,114 px and the answer is 37,400 px, so **44% of the
+final shape is territory the flood claimed** — corners included.
+
+The one genuinely tricky parameter is how far out to put the red zone, and it bites in both
+directions — too close and a sharp corner falls outside it, is labelled background and gets
+erased (the triangle came back a hexagon, 13% too small); too far and a *weak* edge loses to
+some stronger ridge further out (the olive trapezoid overshot by 37%). Convexity settles it:
+all these shapes are convex, so the algorithm tries the widest clearance first and accepts the
+first result that is still convex.
+
+That failure is the same mechanism seen from the other side: the flood can only decide pixels
+that are *undecided*. A corner pre-labelled "certainly background" was never up for decision,
+so no amount of flooding could rescue it. Widening the clearance put those corners back into
+the white band, and once they were merely undecided the interior flood reached them trivially.
+
+For the honest caveat, look at the top-right of the answer above — a small bulge where the
+flood wandered. The same spot in the terrain map shows why: the ridge is weaker there and the
+asphalt speckle is dense, so the water found a gap and got caught on a nearby speckle ridge
+instead of the real edge. Centre and area stay accurate; it's the vertex count that suffers,
+which is why the trapezoid is the shape most often misnamed.
+
 ![hard result](figures/06_hard_result.png)
 
 ### Proving it, on backgrounds nobody supplied
@@ -314,6 +369,23 @@ flat and gradient fills. Ground truth is exact because the scene is generated.
 **Recall 97.8% (88/90) · 0 misclassifications · mean centre error 0.3 px**, on one unchanged
 parameter set covering solid colours, smooth gradients, sand, gravel, grass, wood grain and a
 checkerboard. The 13 false positives are all checkerboard cells, discussed below.
+
+![background suite](figures/11_background_suite.png)
+
+Every tile above uses **gradient** fills — the harder case, so passing here implies the flat one.
+Nothing is tuned per background: the same parameters produce all nine.
+
+Two failures are visible rather than hidden. On **green texture (grass)**, bottom-left, the dark
+green trapezoid on green grass is never outlined — the same weak-contrast problem the real
+footage has, reproduced synthetically. On **checkerboard**, bottom-right, three small yellow
+boxes are pattern cells that survived the repeat filter; they are genuinely shape-like, being
+uniform inside and bounded by a strong edge.
+
+Reproduce it with:
+
+```bash
+python3 test_backgrounds.py --save sheet.png
+```
 
 ### What went wrong here
 
@@ -586,6 +658,9 @@ respected: frames really do arrive asynchronously now.
 package, so the interfaces live in `pennair_msgs` and the nodes in `pennair_vision`.
 
 ### Running it
+
+Needs a ROS 2 environment. [`ROS2_SETUP.md`](ROS2_SETUP.md) walks through building one from a
+blank Mac — UTM VM, Ubuntu 24.04 ARM64, ROS 2 Jazzy — in about an hour.
 
 ```bash
 cd ros2_ws && colcon build --symlink-install && source install/setup.bash

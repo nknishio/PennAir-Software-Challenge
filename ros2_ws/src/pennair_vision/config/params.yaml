@@ -1,0 +1,25 @@
+# Defaults tuned for a VM rather than for maximum fidelity.
+#
+# Raw 1080p at 30 Hz is 186 MB/s on the wire, which a virtualised DDS stack will
+# not enjoy. Half scale at 10 Hz is about 15 MB/s and leaves the picture more
+# than detailed enough -- at 960x540 the reference circle is still ~51 px in
+# radius, comfortably inside the detector's measured working range.
+#
+# Downscaling is safe *because* the intrinsics are scaled with the image (see
+# pose3d.Camera.for_frame). Depth is unchanged by `scale`.
+
+video_publisher:
+  ros__parameters:
+    rate: 10.0
+    scale: 0.5
+    loop: true
+    frame_id: "camera_optical_frame"
+    principal_point: "given"
+
+shape_detector:
+  ros__parameters:
+    publish_annotated: true
+    publish_markers: true
+    publish_vision_msgs: true
+    marker_lifetime: 0.5
+    principal_point: "given"

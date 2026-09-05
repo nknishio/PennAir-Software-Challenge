@@ -127,4 +127,99 @@ cv2.imwrite(f"{OUT}/07_3d_result.png", np.hstack(picked))
 import test_pose3d as tp
 tp.test_accuracy(save=f"{OUT}/08_3d_truth.png")
 
-print("wrote 8 figures to", OUT)
+# 9 -- how the watershed refinement works ------------------------------------
+# The step that replaced colour thresholding in the agnostic detector: markers
+# say what is certainly inside and certainly outside, and the image decides the
+# rest. Shown on the navy-to-yellow pentagon, which has no single fill colour.
+p = da.auto_params(h0.shape)
+win = p["win"]
+seeds, _, _ = da.candidates(h0, p["min_area"])
+pent = min(seeds, key=lambda c: abs(cv2.boundingRect(c)[0] + cv2.boundingRect(c)[2] // 2 - 1366))
+
+r_out = win * 3
+pad = r_out + win
+bx, by, bw, bh = cv2.boundingRect(pent)
+x0, y0 = max(bx - pad, 0), max(by - pad, 0)
+x1, y1 = min(bx + bw + pad, h0.shape[1]), min(by + bh + pad, h0.shape[0])
+roi = np.ascontiguousarray(h0[y0:y1, x0:x1])
+
+seedm = np.zeros(roi.shape[:2], np.uint8)
+cv2.drawContours(seedm, [pent - (x0, y0)], -1, 255, cv2.FILLED)
+fg = cv2.erode(seedm, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (max(win // 2, 3),) * 2))
+away = cv2.distanceTransform(255 - seedm, cv2.DIST_L2, 3)
+mk = np.zeros(roi.shape[:2], np.int32)
+mk[away > r_out] = 1                       # certainly background
+mk[fg > 0] = 2                             # certainly shape
+
+zones = roi.copy()
+for sel, tint, a in ((mk == 1, (40, 40, 220), 0.55),      # red   = outside
+                     (mk == 2, (60, 220, 60), 0.55),      # green = inside
+                     (mk == 0, (255, 255, 255), 0.45)):   # white = undecided
+    zones[sel] = ((1 - a) * zones[sel] + a * np.float32(tint)).astype(np.uint8)
+
+seedvis = roi.copy()
+cv2.drawContours(seedvis, [pent - (x0, y0)], -1, (0, 0, 255), 2)
+mk_base = mk.copy()                        # watershed overwrites its markers
+cv2.watershed(roi, mk)
+cnts, _ = cv2.findContours((mk == 2).astype(np.uint8) * 255,
+                           cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+fin_contour = max(cnts, key=cv2.contourArea)
+final = roi.copy()
+cv2.drawContours(final, [fin_contour], -1, (0, 255, 255), 3)
+
+cv2.imwrite(f"{OUT}/09_watershed.png", strip([
+    (seedvis, "1. rough seed (red)"),
+    (zones, "2. green=in  red=out  white=undecided"),
+    (final, "3. watershed's answer"),
+], w=330))
+
+# 10 -- why a rounded seed yields a sharp answer -----------------------------
+# The marker's outline never reaches the result. What shapes the answer is the
+# gradient "terrain" the flood runs over, and that terrain is razor sharp.
+terrain = boundary_energy_vis = da.boundary_energy(roi)
+tv = cv2.applyColorMap(
+    cv2.normalize(np.clip(terrain, 0, 120), None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8),
+    cv2.COLORMAP_INFERNO)
+
+start_cnts, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+start = roi.copy()
+cv2.drawContours(start, start_cnts, -1, (60, 255, 60), 2)
+
+both = roi.copy()
+cv2.drawContours(both, start_cnts, -1, (60, 255, 60), 2)   # where the water began
+cv2.drawContours(both, [fin_contour], -1, (0, 255, 255), 2)  # where it stopped
+
+cv2.imwrite(f"{OUT}/10_flood.png", strip([
+    (start, "1. where water starts (green)"),
+    (tv, "2. the terrain: bright = ridge"),
+    (both, "3. green -> yellow (where it stopped)"),
+], w=330))
+
+# 11 -- the background-agnosticism suite -------------------------------------
+# Nine synthetic backgrounds, all with *gradient* fills -- the harder case, so
+# passing here implies the flat case. Ground truth is exact: the scene is
+# generated, and the expected centre is measured from each shape's own mask.
+import test_backgrounds as tb
+
+bg_tiles = []
+for bg_name, bg_img in tb.backgrounds().items():
+    scene = tb.draw_shapes(bg_img, True)
+    score = tb.evaluate(scene)
+    vis = scene.copy()
+    for d in da.detect(scene)[0]:
+        cv2.drawContours(vis, [d["contour"]], -1, (0, 255, 255), 3)
+        cv2.drawMarker(vis, d["center"], (0, 0, 255), cv2.MARKER_CROSS, 26, 3)
+        org = (d["center"][0] - 52, d["center"][1] - 46)
+        cv2.putText(vis, d["shape"], org, F, 0.62, (0, 0, 0), 5, cv2.LINE_AA)
+        cv2.putText(vis, d["shape"], org, F, 0.62, (255, 255, 255), 2, cv2.LINE_AA)
+
+    t = cv2.resize(vis, (430, 242))
+    cv2.rectangle(t, (0, 0), (430, 26), (0, 0, 0), -1)
+    cv2.putText(t, f"{bg_name}  {score['found']}/5", (7, 19), F, 0.52,
+                (255, 255, 255), 1, cv2.LINE_AA)
+    bg_tiles.append(cv2.copyMakeBorder(t, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=(40, 40, 40)))
+
+cv2.imwrite(f"{OUT}/11_background_suite.png",
+            np.vstack([np.hstack(bg_tiles[i:i + 3]) for i in range(0, 9, 3)]))
+
+print("wrote 11 figures to", OUT)
