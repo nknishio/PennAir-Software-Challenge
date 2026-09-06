@@ -11,8 +11,8 @@ asserts the things that would break if the port went wrong:
   * the plane depth matches what the CLI reports
 
 That last one is the useful assertion. `python3 detect_video_3d.py` on this
-footage gives a plane depth of 251.74 in; in metres that is 6.395. If the ROS
-numbers disagree the fault is in K scaling or in the inch-to-metre conversion at
+footage gives a plane depth of 251.74 in; in meters that is 6.395. If the ROS
+numbers disagree the fault is in K scaling or in the inch-to-meter conversion at
 the publish boundary, not in the detector -- which narrows the search to this
 package immediately.
 
@@ -85,7 +85,7 @@ def test_detections_published(video):
         assert err < DEPTH_TOL, (
             f"plane depth {median:.3f} m disagrees with the CLI's "
             f"{EXPECTED_DEPTH_M:.3f} m by {100 * err:.1f}% -- suspect K scaling "
-            f"or the inch->metre conversion")
+            f"or the inch->meter conversion")
 
         sample = located[-1]
         for d in sample.detections:

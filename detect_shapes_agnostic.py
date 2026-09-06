@@ -5,11 +5,11 @@ The predecessor (detect_shapes.py) rests on two assumptions that hold for grass
 and flat-filled shapes and break elsewhere:
 
   1. the background is textured and the shapes are perfectly flat
-  2. each shape is a single uniform colour
+  2. each shape is a single uniform color
 
 "PennAir 2024 App Dynamic Hard.mp4" breaks both: the ground is dark asphalt and
 the shapes are gradient-filled (purple->green, navy->yellow). Under (1) a steep
-gradient reads as texture, so parts of a shape are lost; under (2) the colour
+gradient reads as texture, so parts of a shape are lost; under (2) the color
 model splits one gradient shape into pieces.
 
 This module removes both assumptions and never models the background at all:
@@ -23,7 +23,7 @@ This module removes both assumptions and never models the background at all:
   * VERIFICATION by boundary contrast, so a candidate from either route has to
     prove it is bounded by a real edge.
   * REFINEMENT and SPLITTING by watershed on the image gradient, which needs no
-    fill-colour model.
+    fill-color model.
 
 Usage:  python detect_shapes_agnostic.py [image] [-o out.png] [--debug]
 """
@@ -71,7 +71,7 @@ def texture_energy(bgr, hp_sigma=4.0, win=None):
     while the background holds at 11.0, widening the separation from 2.1x to
     4.5x.
 
-    Computed across all three channels so that two colours of equal brightness
+    Computed across all three channels so that two colors of equal brightness
     still register as a boundary.
     """
     win = auto_params(bgr.shape)["win"] if win is None else win
@@ -85,8 +85,8 @@ def texture_energy(bgr, hp_sigma=4.0, win=None):
     residual = img - low
 
     # Collapse the channels before measuring, not after: one variance pass over
-    # the colour-distance of the residual answers the same question as three
-    # separate passes, and an edge between two equally bright colours still
+    # the color-distance of the residual answers the same question as three
+    # separate passes, and an edge between two equally bright colors still
     # registers because the chroma channels carry it.
     energy_in = cv2.sqrt((residual * residual).sum(axis=2))
     mean = cv2.boxFilter(energy_in, -1, (win, win))
@@ -104,7 +104,7 @@ def boundary_energy(bgr, blur=5):
     A shape boundary is a step; texture is noise. A median filter flattens the
     noise while leaving the step intact, so what is left in the gradient is
     dominated by real boundaries. Taken per channel and combined, so an edge
-    between two equally bright colours is not missed.
+    between two equally bright colors is not missed.
     """
     sm = cv2.medianBlur(bgr, blur)
     mag = np.zeros(bgr.shape[:2], np.float32)
@@ -321,7 +321,7 @@ def verify(mag, energy, contour):
 
 
 # --------------------------------------------------------------------------
-# refinement -- no fill-colour model
+# refinement -- no fill-color model
 # --------------------------------------------------------------------------
 
 def _watershed_once(bgr, seed_contour, win, r_out):
@@ -370,14 +370,14 @@ def _watershed_once(bgr, seed_contour, win, r_out):
 def refine_watershed(bgr, seed_contour, win, solid_enough=0.95):
     """Snap a rough seed onto the true boundary using watershed.
 
-    The predecessor sharpened outlines by sampling the fill colour and
-    re-thresholding on colour distance. That needs the shape to *have* a fill
-    colour; a purple-to-green rectangle does not, and thresholding around its
+    The predecessor sharpened outlines by sampling the fill color and
+    re-thresholding on color distance. That needs the shape to *have* a fill
+    color; a purple-to-green rectangle does not, and thresholding around its
     mean keeps only the middle band.
 
-    Watershed asks nothing about colour. It floods outward from what is known to
+    Watershed asks nothing about color. It floods outward from what is known to
     be inside and inward from what is known to be outside, and the two meet on
-    the strongest ridge between them -- the real edge, whatever colours lie
+    the strongest ridge between them -- the real edge, whatever colors lie
     either side of it.
 
     How much clearance to leave before "certainly background" is the one real
@@ -412,18 +412,18 @@ def refine_watershed(bgr, seed_contour, win, solid_enough=0.95):
 
 
 # --------------------------------------------------------------------------
-# splitting overlapping shapes -- no fill-colour model
+# splitting overlapping shapes -- no fill-color model
 # --------------------------------------------------------------------------
 
 def split_merged(bgr, contour, min_area, peak_frac=0.55):
     """Separate shapes that overlapped into one region.
 
-    The predecessor split a merged blob by clustering its fill colours, which
+    The predecessor split a merged blob by clustering its fill colors, which
     needs each shape to *have* one. Two gradient-filled shapes defeat that
-    completely -- a single purple-to-green rectangle contains more colour
+    completely -- a single purple-to-green rectangle contains more color
     variation than the gap between two different shapes.
 
-    Distance geometry replaces colour. The distance transform gives every pixel
+    Distance geometry replaces color. The distance transform gives every pixel
     its distance to the nearest edge, so a convex shape has exactly one broad
     maximum at its middle. Two shapes overlapping produce a waisted region with
     *two* separated maxima. Seeding a watershed from those maxima cuts the union
@@ -475,12 +475,12 @@ def split_merged(bgr, contour, min_area, peak_frac=0.55):
 def appearance(bgr, contour, bins=(12, 12)):
     """A hue/saturation histogram of a shape's interior, as its identity.
 
-    The predecessor identified a shape across frames by its mean fill colour.
+    The predecessor identified a shape across frames by its mean fill color.
     That is exactly what a gradient destroys: the mean of a purple-to-green
-    rectangle names a colour the shape does not contain, and it shifts as parts
+    rectangle names a color the shape does not contain, and it shifts as parts
     of the shape leave the frame or fall behind something else.
 
-    A histogram has no such problem. It records *which* colours are present
+    A histogram has no such problem. It records *which* colors are present
     rather than averaging them away, so a two-tone shape is described by its two
     tones, and a partly hidden one still matches -- the bars shrink, but the
     occupied bins do not move. Hue and saturation, with value dropped, so that a
@@ -582,7 +582,7 @@ def detect(bgr, min_area=None, min_contrast=4.0, min_tex_contrast=2.0,
 
     Nothing here models the background: the thresholds are relative to the
     frame's own statistics, the refinement follows image gradients rather than
-    colours, and candidates must earn their place by boundary contrast.
+    colors, and candidates must earn their place by boundary contrast.
     """
     p = auto_params(bgr.shape)
     min_area = p["min_area"] if min_area is None else min_area

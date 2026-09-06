@@ -51,7 +51,7 @@ regardless of their color. That is the discriminator the algorithm is built on.
 ```mermaid
 flowchart LR
     A[Input image] --> B["<b>Stage 1</b><br/>Texture segmentation<br/><i>where are the shapes?</i>"]
-    B --> C["<b>Stage 2</b><br/>Colour refinement<br/><i>where exactly are the edges?</i>"]
+    B --> C["<b>Stage 2</b><br/>color refinement<br/><i>where exactly are the edges?</i>"]
     C --> D["<b>Stage 3</b><br/>Centre via image moments"]
     C --> E["<b>Stage 4</b><br/>Classify the shape"]
     D --> F[Annotated output]

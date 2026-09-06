@@ -2,7 +2,7 @@
 
 Detecting shapes on a grassy background, marking their centres, tracking them through video,
 making the whole thing work on **any** background, and finally reporting where each shape is in
-**metres and inches** rather than pixels.
+**meters and inches** rather than pixels.
 
 ![static result](figures/02_static_pipeline.png)
 
@@ -10,7 +10,7 @@ making the whole thing work on **any** background, and finally reporting where e
 |---|---|
 | **Static image** — detect shapes, mark centres | 5/5 detected, classified and centred |
 | **Video** — streamed frame by frame | recall **98.0%** · classification **98.8%** · 30 fps on a 30 fps source |
-| **Background-agnostic** — any colour/texture | **97.8%** recall over 9 backgrounds × 2 fill types · 0 misclassifications |
+| **Background-agnostic** — any color/texture | **97.8%** recall over 9 backgrounds × 2 fill types · 0 misclassifications |
 | **3D** — metric X, Y, Z from the camera | depth to **0.3%** of truth · a position on **every** frame |
 
 **See it running** — ▶ [video](output_dynamic_CLIP.mp4) · ▶ [any background](output_hard_CLIP.mp4) · ▶ [in 3D](output_hard_3d_CLIP.mp4)
@@ -39,7 +39,7 @@ footage — and `0` means the webcam:
 
 ```bash
 python3 detect_video_3d.py 0                       # live camera, in 3D
-python3 detect_3d.py my_photo.png --units m        # one image, metres
+python3 detect_3d.py my_photo.png --units m        # one image, meters
 python3 detect_video_agnostic.py clip.mp4 --scale 0.5 --no-video
 python3 detect_shapes_agnostic.py --debug          # dump the intermediate maps
 ```
@@ -73,7 +73,7 @@ is as much a property of the machine as of the code.
 
 ## In 60 seconds
 
-The shapes cannot be found by **colour** — one of them is the same green as the grass. They can
+The shapes cannot be found by **color** — one of them is the same green as the grass. They can
 be found by **texture**: grass is thousands of tiny blades, the shapes are smooth. That one
 observation drives everything:
 
@@ -127,7 +127,7 @@ enough to erase the lawn erases the trapezoid too.
 
 The right panel is the same scene measured by *local texture* instead. Every shape is a black
 hole in a field of noise — including the green one. Texture separates all five at once,
-regardless of colour.
+regardless of color.
 
 | | Grass | Green trapezoid |
 |---|---|---|
@@ -135,7 +135,7 @@ regardless of colour.
 | Local intensity variation | 13.0 | **0.0** |
 
 > **Interview note.** The whole design follows from choosing a discriminator that doesn't
-> collide with the thing you're looking for. Colour collides here; texture does not.
+> collide with the thing you're looking for. color collides here; texture does not.
 
 ---
 
@@ -150,8 +150,8 @@ morphology.
 
 **Stage 2 — sharpen the outline.** Stage 1's boundary is wrong in two ways: the measuring
 window straddles each edge (so the region is inset ~5 px) and the morphology rounds off
-corners. Fix: use the blurry region only to *sample the shape's fill colour*, then recover the
-boundary by colour distance against the original pixels. Sharp corners come back.
+corners. Fix: use the blurry region only to *sample the shape's fill color*, then recover the
+boundary by color distance against the original pixels. Sharp corners come back.
 
 **Stage 3 — centres.** Image moments: `cx = M10/M00`. This is the true area centroid, not the
 bounding-box middle — which would be visibly wrong for the triangle, whose centroid sits ⅓ of
@@ -174,7 +174,7 @@ rectangle from trapezoid.
 | Problem | Cause | Fix |
 |---|---|---|
 | **Otsu returned zero shapes** | Otsu needs two comparably-sized classes. The shapes are ~5% of the frame, so it split the *grass* distribution in half and called the lawn flat | Threshold relative to the background's own roughness: `0.35 × median(σ)`. Self-calibrating, so it also survives different lighting |
-| **Triangle classified as "trapezoid"** | Morphology rounded its corners, so `approxPolyDP` invented vertices | The colour-refinement stage (Stage 2) exists because of this |
+| **Triangle classified as "trapezoid"** | Morphology rounded its corners, so `approxPolyDP` invented vertices | The color-refinement stage (Stage 2) exists because of this |
 | **Circle test had a 0.05 margin** | A regular pentagon's ideal circularity is 0.865 — *above* the 0.85 threshold. It only worked because rasterised contours measure slightly rounder-than-ideal | Added a second, independent signal: a circle's vertex count never settles (11/18 agreement) while a polygon's is unanimous (18/18) |
 | **Areas ~20% too small** | Measured on the pre-refinement region | Measure the refined contour. Caught by sanity-checking areas against visible pixel dimensions |
 
@@ -214,8 +214,8 @@ state lives in the tracker, which keeps the only place a causality bug could hid
 
 When shapes overlap, both are smooth, so the texture stage sees **one** region — that keyhole.
 No amount of tuning fixes it, because as far as texture is concerned they really are one
-region. But they are different *colours*, and Stage 2 already samples fill colour. Dropping the
-assumption of one colour per blob splits them (k-means, guarded so a single shape is never
+region. But they are different *colors*, and Stage 2 already samples fill color. Dropping the
+assumption of one color per blob splits them (k-means, guarded so a single shape is never
 split).
 
 That recovers two centres. It does **not** recover the rectangle's identity — with a bite taken
@@ -246,9 +246,9 @@ the overlay never presents an inference as an observation.
 
 | Problem | Cause | Fix |
 |---|---|---|
-| **Found 3 of 5 shapes** | Overlapping shapes merged into one blob | Split merged blobs by fill colour |
-| **47 tracks for 5 shapes** | Matching on position alone. An occluded shape's centroid *lurches*, and a lurch past the gate makes the tracker drop it and re-acquire it as a new ID | Match on position **and** colour. Colour is untouched by occlusion, so it holds identity exactly when position becomes unreliable → 29 tracks |
-| **Ragged trapezoid → "hexagon"** | Its olive fill sits only 80 units from grass in colour space (others: 180–260), so grass pixels leak through and fray the outline | The leak is *speckle*; the shape is *solid*. A morphological opening removes one and keeps the other. A tighter colour threshold was tried and measured — it did not help |
+| **Found 3 of 5 shapes** | Overlapping shapes merged into one blob | Split merged blobs by fill color |
+| **47 tracks for 5 shapes** | Matching on position alone. An occluded shape's centroid *lurches*, and a lurch past the gate makes the tracker drop it and re-acquire it as a new ID | Match on position **and** color. color is untouched by occlusion, so it holds identity exactly when position becomes unreliable → 29 tracks |
+| **Ragged trapezoid → "hexagon"** | Its olive fill sits only 80 units from grass in color space (others: 180–260), so grass pixels leak through and fray the outline | The leak is *speckle*; the shape is *solid*. A morphological opening removes one and keeps the other. A tighter color threshold was tried and measured — it did not help |
 | **Ran at 7 fps** | Profiling showed both hotspots were somewhere other than expected | See below |
 | **Phantom tracks drifting off-screen** | Coasting tracks predicted out to x = 2322 on a 1920-wide frame | Retire a track once its predicted position leaves the frame |
 
@@ -300,16 +300,16 @@ blur and cancels out, texture does not.
 |---|---|---|
 | Background is textured | Texture cue **+** an enclosure cue | A smooth background (water, asphalt, sky) has no texture to contrast against |
 | Shapes are flat | High-frequency residual | Works for flat *and* gradient fills |
-| One fill colour per shape | **Watershed** on the image gradient | Needs no colour model at all |
-| Colour clustering to split overlaps | **Distance-transform maxima** | A gradient has more internal colour spread than the gap between two shapes |
-| Mean colour for track identity | **Colour histogram** | Records *which* colours are present instead of averaging them away |
+| One fill color per shape | **Watershed** on the image gradient | Needs no color model at all |
+| color clustering to split overlaps | **Distance-transform maxima** | A gradient has more internal color spread than the gap between two shapes |
+| Mean color for track identity | **color histogram** | Records *which* colors are present instead of averaging them away |
 
 The organising principle is **pairs of cues that fail in opposite circumstances**, with the
 detector choosing between them from measurements rather than from a setting.
 
 ### How the watershed refinement works
 
-Replacing the colour model was the biggest of those changes, so it's worth seeing.
+Replacing the color model was the biggest of those changes, so it's worth seeing.
 
 ![watershed](figures/09_watershed.png)
 
@@ -321,9 +321,9 @@ We supply the markers: **green** is "certainly inside the shape" (the rough seed
 little for safety), **red** is "certainly background", and **white** is "you decide". The flood
 settles the white band, and the dam that forms there is the outline.
 
-The point is that watershed **never asks what colour anything is** — only where the strongest
-edge between the two markers lies. That pentagon runs navy to yellow, so its average colour is
-a murky green that appears nowhere in it and the old colour test is helpless; watershed doesn't
+The point is that watershed **never asks what color anything is** — only where the strongest
+edge between the two markers lies. That pentagon runs navy to yellow, so its average color is
+a murky green that appears nowhere in it and the old color test is helpless; watershed doesn't
 care. Note how little the seed contributed: 24,003 of the shape's 37,400 pixels, rounded and
 missing every corner. It's a hint about where to start flooding, not an answer.
 
@@ -372,7 +372,7 @@ the same shapes over nine synthetic ones — smooth, textured, light, dark, patt
 flat and gradient fills. Ground truth is exact because the scene is generated.
 
 **Recall 97.8% (88/90) · 0 misclassifications · mean centre error 0.3 px**, on one unchanged
-parameter set covering solid colours, smooth gradients, sand, gravel, grass, wood grain and a
+parameter set covering solid colors, smooth gradients, sand, gravel, grass, wood grain and a
 checkerboard. The 13 false positives are all checkerboard cells, discussed below.
 
 ![background suite](figures/11_background_suite.png)
@@ -640,11 +640,11 @@ command above still work exactly as documented.
 | `/shapes/markers` | `visualization_msgs/MarkerArray` | centres, labels and **outlines in 3D** |
 | `/shapes/image_annotated` | `sensor_msgs/Image` | the familiar overlay |
 
-Positions are published in **metres** (REP-103); the algorithm works in inches and converts at
+Positions are published in **meters** (REP-103); the algorithm works in inches and converts at
 the publish boundary only. The outline in `ShapeDetection` is the refined contour itself, not a
 polygon approximation of it — the same points the centre and the area were measured from. For
 RViz those points are back-projected onto the plane, which is exact because the plane is
-fronto-parallel, so the marker is the shape's real outline in metres rather than a billboard.
+fronto-parallel, so the marker is the shape's real outline in meters rather than a billboard.
 
 ### Three decisions worth defending
 
@@ -708,7 +708,7 @@ frame speckled with black dots — made it obvious in seconds.
 
 **Validate against something that shares no assumptions.** "It looks right" is not a
 measurement, and there was no ground truth. So: a second detector that counts shapes by
-matching known fill colours. It would be useless as a detector — it only works because it was
+matching known fill colors. It would be useless as a detector — it only works because it was
 told the answers — and that is exactly what makes it a fair check. It agreed at **recall 0.980,
 precision 0.980**, and more usefully it *found the next bug*: listing every miss showed 5 of 12
 were at frame 0, where all five shapes are plainly visible and simply hadn't satisfied the
@@ -771,7 +771,7 @@ independently testable, and the new code cannot perturb a pipeline that already 
 ## Known limits
 
 - Occluded classification needs a prior clean view of the shape.
-- Two same-coloured shapes crossing could swap IDs.
+- Two same-colored shapes crossing could swap IDs.
 - Constant-velocity motion model: a sharp turn during a long occlusion is mispredicted.
 - Occlusion tolerance caps at ~0.7 s, after which a track retires and returns with a new ID.
 - The convex-hull occlusion recovery assumes convex shapes — true of all five here.

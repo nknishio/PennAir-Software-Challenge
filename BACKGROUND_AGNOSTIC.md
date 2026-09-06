@@ -1,6 +1,6 @@
 # Background-Agnostic Shape Detection
 
-Making detection work on **any** background — any colour, any texture, smooth or rough — and
+Making detection work on **any** background — any color, any texture, smooth or rough — and
 on shapes that are gradient-filled rather than flat.
 
 **New code:** [`detect_shapes_agnostic.py`](detect_shapes_agnostic.py) ·
@@ -20,7 +20,7 @@ true of grass with flat-filled shapes, and both are false in `PennAir 2024 App D
 | Assumption | Reality in the hard video |
 |---|---|
 | The background is **textured**, the shapes are **flat** | Shapes are **gradient-filled** — purple→green, navy→yellow, red→orange |
-| Each shape is a **single uniform colour** | A gradient's mean names a colour the shape does not contain |
+| Each shape is a **single uniform color** | A gradient's mean names a color the shape does not contain |
 
 Run unchanged, it finds 4 of 5 shapes and misnames them:
 
@@ -31,12 +31,12 @@ new: ['pentagon', 'circle', 'rectangle', 'trapezoid', 'triangle']
 
 Both failures trace to the same root. **A steep gradient looks exactly like texture** to a
 local-variance measure: a smooth ramp has a large standard deviation while containing no detail
-at all. So Stage 1 discards the gradient parts of shapes, and Stage 2's colour model —
+at all. So Stage 1 discards the gradient parts of shapes, and Stage 2's color model —
 "sample the fill, threshold on distance from it" — has no single fill to sample.
 
 > **TL;DR** — Gradient fills break both original assumptions at once, and for one shared
 > reason: local variance cannot tell a smooth ramp from fine texture, and a gradient has no
-> mean colour worth sampling. That is a change of premise, not a parameter, so this is a new
+> mean color worth sampling. That is a change of premise, not a parameter, so this is a new
 > file and the old one is left intact as the record of what came before.
 
 ---
@@ -53,8 +53,8 @@ flowchart TD
     A --> C["<b>cue B: enclosure</b><br/>regions sealed by an edge<br/><i>works on smooth ground</i>"]
     B --> D[candidate regions]
     C --> D
-    D --> E["<b>refine</b><br/>watershed on image gradient<br/><i>no fill-colour model</i>"]
-    E --> F["<b>split</b><br/>distance-transform peaks<br/><i>no fill-colour model</i>"]
+    D --> E["<b>refine</b><br/>watershed on image gradient<br/><i>no fill-color model</i>"]
+    E --> F["<b>split</b><br/>distance-transform peaks<br/><i>no fill-color model</i>"]
     F --> G{"<b>verify</b><br/>which evidence is<br/>informative here?"}
     G -->|textured ground| H["smoothness ratio"]
     G -->|smooth ground| I["edge ratio"]
@@ -102,9 +102,9 @@ Measured on the hard video's frame 0:
 
 Two details that matter. The low-pass is **two box blurs** rather than a Gaussian — repeated
 box blur converges on a Gaussian and each pass is O(1) per pixel regardless of radius. And the
-colour channels are **collapsed before** the variance rather than measured separately: one pass
-over the residual's colour magnitude answers the same question as three passes, and a boundary
-between two equally *bright* colours still registers because the chroma carries it.
+color channels are **collapsed before** the variance rather than measured separately: one pass
+over the residual's color magnitude answers the same question as three passes, and a boundary
+between two equally *bright* colors still registers because the chroma carries it.
 
 > **TL;DR** — Replacing "local variance" with "local variance of the high-pass residual" makes
 > figure/ground independent of how the shapes are filled, widening the separation on asphalt
@@ -155,15 +155,15 @@ That single change took synthetic recall from 44% to 78%.
 
 ---
 
-## 5. Fix 3 — Refinement by watershed instead of colour
+## 5. Fix 3 — Refinement by watershed instead of color
 
-The original sharpened outlines by sampling the fill colour and re-thresholding on colour
+The original sharpened outlines by sampling the fill color and re-thresholding on color
 distance. A purple-to-green rectangle defeats that: thresholding around its mean keeps only the
 middle band.
 
-**Watershed asks nothing about colour.** It floods outward from what is known to be inside and
+**Watershed asks nothing about color.** It floods outward from what is known to be inside and
 inward from what is known to be outside; the two meet on the strongest ridge between them — the
-real edge, whatever colours lie either side of it.
+real edge, whatever colors lie either side of it.
 
 The one real parameter is how much clearance to leave before "certainly background", and it
 cannot be fixed in advance:
@@ -187,20 +187,20 @@ only when it does not. In the common case the first attempt is accepted and this
 flood. Calibrated against the previous version's validated outputs, the refined areas land
 within **0.3% mean error** on the static image.
 
-> **TL;DR** — Watershed replaces colour thresholding for refinement, so the fill can be
+> **TL;DR** — Watershed replaces color thresholding for refinement, so the fill can be
 > anything. Its clearance parameter is genuinely two-sided — too small clips corners, too large
 > leaks across weak edges — and is resolved by exploiting convexity: try widest first, accept
 > the first result that is solid. Areas match the previously validated pipeline to 0.3%.
 
 ---
 
-## 6. Fix 4 — Splitting overlaps by distance, not colour
+## 6. Fix 4 — Splitting overlaps by distance, not color
 
-The original split merged blobs by clustering their fill colours. Two gradient shapes defeat
-that completely — a single purple-to-green rectangle contains *more* colour variation than the
+The original split merged blobs by clustering their fill colors. Two gradient shapes defeat
+that completely — a single purple-to-green rectangle contains *more* color variation than the
 gap between two different shapes.
 
-Distance geometry replaces colour. The distance transform gives every pixel its distance to the
+Distance geometry replaces color. The distance transform gives every pixel its distance to the
 nearest edge, so a convex shape has exactly **one** broad maximum at its middle and two
 overlapping shapes produce a waisted region with **two** separated maxima. Seeding a watershed
 from those maxima cuts the union where the shapes actually meet.
@@ -209,7 +209,7 @@ Counting maxima is itself the test for whether to split — a lone shape offers 
 nothing happens — and a solidity check short-circuits it, since two convex shapes can only
 merge into a concave union.
 
-> **TL;DR** — Overlapping shapes are separated by distance-transform maxima rather than colour
+> **TL;DR** — Overlapping shapes are separated by distance-transform maxima rather than color
 > clusters, which a gradient fill would scramble. The number of maxima doubles as the decision
 > of whether a split is warranted, and a solid region is skipped without examination.
 
@@ -259,13 +259,13 @@ more identical shapes, and buys immunity to a tiled floor.
 
 ---
 
-## 8. Fix 6 — Identity by histogram, not mean colour
+## 8. Fix 6 — Identity by histogram, not mean color
 
-The tracker previously carried identity by each shape's mean fill colour. A gradient destroys
-that: the mean names a colour the shape does not contain, and it drifts as parts of the shape
+The tracker previously carried identity by each shape's mean fill color. A gradient destroys
+that: the mean names a color the shape does not contain, and it drifts as parts of the shape
 are occluded or leave the frame.
 
-A **hue/saturation histogram** records *which* colours are present instead of averaging them, so
+A **hue/saturation histogram** records *which* colors are present instead of averaging them, so
 a two-tone shape is described by its two tones and a partly hidden one still matches — the bars
 shrink, but the occupied bins do not move. Value is dropped so a shadow does not rename a shape.
 
@@ -274,9 +274,9 @@ shrink, but the occupied bins do not move. Value is dropped so a shadow does not
 | Same shape, consecutive frames | **≤ 0.008** |
 | Two different shapes | **≥ 0.893** |
 
-A wider margin than mean colour ever gave, and unaffected by the gradients that broke it.
+A wider margin than mean color ever gave, and unaffected by the gradients that broke it.
 
-> **TL;DR** — Track identity moves from mean fill colour to a hue/saturation histogram, which a
+> **TL;DR** — Track identity moves from mean fill color to a hue/saturation histogram, which a
 > gradient cannot scramble and partial occlusion cannot shift. Consecutive-frame distance for
 > the same shape is ≤ 0.008 against ≥ 0.893 for different shapes.
 
@@ -317,7 +317,7 @@ unchanged parameter set.
 | Tracks for 5 shapes | — | 34 | 40 |
 
 The static image reproduces the previously validated results — areas within 0.3%, centres
-within 1.4 px — **with no colour model at all**.
+within 1.4 px — **with no color model at all**.
 
 > **TL;DR** — 97.8% recall and zero misclassifications across nine synthetic backgrounds and
 > both fill types; 93% recall with ~2 px centre accuracy and zero false positives on both real

@@ -94,7 +94,7 @@ def draw_shapes(bg, gradient_fill):
         else:
             cv2.fillPoly(mask, [shape_points(kind, c, r)], 255)
         if gradient_fill:
-            # a ramp between two very different colours, across the shape
+            # a ramp between two very different colors, across the shape
             other = (col[2], col[0], col[1])
             ramp = np.zeros_like(img, np.float32)
             t = np.linspace(0, 1, img.shape[1], dtype=np.float32)[None, :, None]

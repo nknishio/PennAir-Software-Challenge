@@ -34,7 +34,7 @@ def frame(path, n):
     return img
 
 
-# 1 -- why texture and not colour -------------------------------------------
+# 1 -- why texture and not color -------------------------------------------
 img = cv2.imread("PennAir 2024 App Static.png")
 hue = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)[:, :, 0]
 hue_vis = cv2.applyColorMap(cv2.normalize(hue, None, 0, 255, cv2.NORM_MINMAX), cv2.COLORMAP_HSV)
@@ -128,9 +128,9 @@ import test_pose3d as tp
 tp.test_accuracy(save=f"{OUT}/08_3d_truth.png")
 
 # 9 -- how the watershed refinement works ------------------------------------
-# The step that replaced colour thresholding in the agnostic detector: markers
+# The step that replaced color thresholding in the agnostic detector: markers
 # say what is certainly inside and certainly outside, and the image decides the
-# rest. Shown on the navy-to-yellow pentagon, which has no single fill colour.
+# rest. Shown on the navy-to-yellow pentagon, which has no single fill color.
 p = da.auto_params(h0.shape)
 win = p["win"]
 seeds, _, _ = da.candidates(h0, p["min_area"])

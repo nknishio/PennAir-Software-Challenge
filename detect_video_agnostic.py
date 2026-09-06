@@ -7,13 +7,13 @@ past -- but built on detect_shapes_agnostic, so it carries no assumption about
 what the background looks like or how the shapes are filled.
 
 One part of the tracker had to change. Identity was previously carried by each
-shape's mean fill colour, which a gradient fill destroys: the mean of a
-purple-to-green rectangle names a colour the shape does not contain, and it
+shape's mean fill color, which a gradient fill destroys: the mean of a
+purple-to-green rectangle names a color the shape does not contain, and it
 drifts as the shape is occluded or clipped. Identity is now carried by a
-hue/saturation histogram, which records which colours are present instead of
+hue/saturation histogram, which records which colors are present instead of
 averaging them. Measured between consecutive frames, the same shape scores at
 most 0.008 and two different shapes at least 0.893 -- a far wider margin than
-mean colour ever gave.
+mean color ever gave.
 
 Usage:  python detect_video_agnostic.py [input] [-o out.mp4] [--csv log.csv]
 """

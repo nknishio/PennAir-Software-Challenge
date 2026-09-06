@@ -25,7 +25,7 @@ Two things ROS adds that the CLI could not demonstrate:
   * Intrinsics arrive on a topic, so the detector is not told in advance what
     resolution or calibration it is working with.
 
-Positions are published in METRES in the camera optical frame (REP-103). The
+Positions are published in meterS in the camera optical frame (REP-103). The
 algorithm works in inches; the conversion happens at the publish boundary and
 nowhere else.
 """
@@ -184,13 +184,13 @@ class ShapeDetector(Node):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _metres(xyz):
+    def _meters(xyz):
         return algo.pose3d.convert(xyz, "m")
 
     def _detection_array(self, header, tracks, Z, src):
         out = ShapeDetectionArray()
         out.header = header
-        out.plane_depth = float(self._metres((0.0, 0.0, Z))[2]) if Z else 0.0
+        out.plane_depth = float(self._meters((0.0, 0.0, Z))[2]) if Z else 0.0
         out.depth_source = src or ""
 
         for t in tracks:
@@ -203,7 +203,7 @@ class ShapeDetector(Node):
             d.center_px = Point(x=float(t.center[0]), y=float(t.center[1]), z=0.0)
 
             if getattr(t, "xyz", None):
-                X, Y, Zc = self._metres(t.xyz)
+                X, Y, Zc = self._meters(t.xyz)
                 d.position = Point(x=float(X), y=float(Y), z=float(Zc))
                 d.has_position = True
             else:
@@ -242,7 +242,7 @@ class ShapeDetector(Node):
 
         The outline is worth the extra few lines. Every contour point lies on the
         same plane at the same depth, so back-projecting it through the camera is
-        exact -- the result is the shape's true outline in metres, not a billboard
+        exact -- the result is the shape's true outline in meters, not a billboard
         drawn at its centre.
         """
         out = MarkerArray()
@@ -254,17 +254,17 @@ class ShapeDetector(Node):
         for t in tracks:
             if not getattr(t, "xyz", None):
                 continue
-            X, Y, Zc = self._metres(t.xyz)
-            colour = ColorRGBA(r=float(t.color[2]) / 255.0,
+            X, Y, Zc = self._meters(t.xyz)
+            color = ColorRGBA(r=float(t.color[2]) / 255.0,
                                g=float(t.color[1]) / 255.0,
                                b=float(t.color[0]) / 255.0, a=0.9)   # BGR -> RGB
 
-            sphere = self._marker(header, colour, lifetime, t.id * 3, Marker.SPHERE)
+            sphere = self._marker(header, color, lifetime, t.id * 3, Marker.SPHERE)
             sphere.pose.position = Point(x=float(X), y=float(Y), z=float(Zc))
             sphere.scale.x = sphere.scale.y = sphere.scale.z = 0.08
             out.markers.append(sphere)
 
-            text = self._marker(header, colour, lifetime, t.id * 3 + 1,
+            text = self._marker(header, color, lifetime, t.id * 3 + 1,
                                 Marker.TEXT_VIEW_FACING)
             text.pose.position = Point(x=float(X), y=float(Y),
                                        z=float(Zc) - 0.15)
@@ -272,10 +272,10 @@ class ShapeDetector(Node):
             text.text = f"#{t.id} {t.label}  {Zc:.2f} m"
             out.markers.append(text)
 
-            line = self._marker(header, colour, lifetime, t.id * 3 + 2,
+            line = self._marker(header, color, lifetime, t.id * 3 + 2,
                                 Marker.LINE_STRIP)
             line.scale.x = 0.01
-            pts = [self._metres(self.camera.backproject(float(p[0][0]),
+            pts = [self._meters(self.camera.backproject(float(p[0][0]),
                                                         float(p[0][1]), Z))
                    for p in t.contour]
             line.points = [Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
@@ -286,7 +286,7 @@ class ShapeDetector(Node):
         return out
 
     @staticmethod
-    def _marker(header, colour, lifetime, marker_id, marker_type):
+    def _marker(header, color, lifetime, marker_id, marker_type):
         """A marker with everything common already filled in.
 
         `lifetime` rather than a DELETEALL each frame: a track that disappears
@@ -299,7 +299,7 @@ class ShapeDetector(Node):
         m.action = Marker.ADD
         m.id = int(marker_id)
         m.type = marker_type
-        m.color = colour
+        m.color = color
         m.pose.orientation.w = 1.0
         m.lifetime.sec = int(lifetime)
         m.lifetime.nanosec = int((lifetime - int(lifetime)) * 1e9)

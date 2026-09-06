@@ -11,7 +11,7 @@ string  state               # confirmed | coasting | new
 
 geometry_msgs/Point center_px   # image coords: x=u, y=v, z=0
 
-# Position in the camera optical frame, in METRES (REP-103). The pipeline works
+# Position in the camera optical frame, in meterS (REP-103). The pipeline works
 # internally in inches; the conversion happens at the publish boundary.
 geometry_msgs/Point position
 bool                has_position    # false until a circle has been seen at least once

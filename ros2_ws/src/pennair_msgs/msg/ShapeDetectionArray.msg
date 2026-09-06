@@ -5,7 +5,7 @@
 
 std_msgs/Header header      # stamp and frame_id copied from the source image
 
-float32 plane_depth         # METRES; 0.0 when no scale has been established yet
+float32 plane_depth         # meterS; 0.0 when no scale has been established yet
 
 # How plane_depth was obtained on this frame:
 #   circle   -- measured directly from the 10 in reference circle

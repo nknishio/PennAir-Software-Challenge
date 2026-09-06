@@ -138,13 +138,13 @@ def dominant_colors(roi, seed_mask, max_k=3, min_sep=60.0, min_frac=0.05,
     if len(px) < 10:
         return [cv2.mean(roi, mask=seed_mask)[:3]]
 
-    # Clustering needs the colour distribution, not every pixel of it. A few
+    # Clustering needs the color distribution, not every pixel of it. A few
     # thousand samples locate the centres just as well for a fraction of the cost.
     if len(px) > max_samples:
         px = px[np.random.default_rng(0).choice(len(px), max_samples, replace=False)]
 
     # Most blobs are a single shape. If the spread is far too small to hold two
-    # colours min_sep apart, say so without paying for k-means at all.
+    # colors min_sep apart, say so without paying for k-means at all.
     if px.std(axis=0).max() * 4 < min_sep:
         return [tuple(map(float, px.mean(axis=0)))]
 
@@ -169,7 +169,7 @@ def refine_blob(bgr, seed_contour, min_area, tol=40, pad=None):
     sharpening against the original pixels. And if the seed merged several
     overlapping shapes, it needs splitting. The flat fill colors answer both.
 
-    Returns a (contour, fill_color) pair per shape. The colour is free here and
+    Returns a (contour, fill_color) pair per shape. The color is free here and
     is what lets a tracker keep hold of a shape's identity across frames.
     """
     h, w = bgr.shape[:2]
@@ -182,9 +182,9 @@ def refine_blob(bgr, seed_contour, min_area, tol=40, pad=None):
     seed = np.zeros(roi.shape[:2], np.uint8)
     cv2.drawContours(seed, [seed_contour - (x0, y0)], -1, 255, cv2.FILLED)
 
-    # A fill colour close to the background (the olive trapezoid sits only ~70
+    # A fill color close to the background (the olive trapezoid sits only ~70
     # from grass, where the others sit 180-260) lets scattered grass pixels pass
-    # the colour test, fraying the outline into false vertices. They arrive as
+    # the color test, fraying the outline into false vertices. They arrive as
     # speckle and hair, so an opening removes them; the closing then reseals the
     # shape. Costs ~6% of area -- which was the fringe, not the shape.
     rk = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (auto_params(bgr.shape)["rksize"],) * 2)
@@ -208,10 +208,10 @@ def refine_blob(bgr, seed_contour, min_area, tol=40, pad=None):
                 keep.append(c)
 
         # An occluder lying across the middle of a shape cuts its visible area
-        # into two pieces. They are one shape -- same seed, same fill colour --
+        # into two pieces. They are one shape -- same seed, same fill color --
         # so rejoin them rather than reporting two. The gap they span has to be
         # small relative to the pieces themselves; genuinely separate shapes of
-        # the same colour would sit much further apart.
+        # the same color would sit much further apart.
         while len(keep) > 1:
             merged = False
             for a in range(len(keep)):
@@ -232,7 +232,7 @@ def refine_blob(bgr, seed_contour, min_area, tol=40, pad=None):
         out.extend((c + (x0, y0), fill) for c in keep)
 
     if not out:
-        # Refinement found nothing; trust the seed and measure its colour directly.
+        # Refinement found nothing; trust the seed and measure its color directly.
         return [(seed_contour, cv2.mean(roi, mask=seed)[:3])]
     return out
 
