@@ -321,7 +321,8 @@ ros2 launch pennair_vision shapes.launch.py video:=... rate:=5 scale:=0.4
 | Symptom | Cause | Fix |
 |---|---|---|
 | VM boots to a black screen or won't start | x86 ISO, or **Emulate** instead of **Virtualize** | Recreate with the `arm64` ISO and Virtualize |
-| Reboots into the installer | ISO still attached | VM settings → remove the ISO from the CD/DVD drive |
+| **"Out of storage", or `df` shows `/` on `/cow`** | You are in the live "Try Ubuntu" session — Ubuntu was never installed, and `/` is a small RAM overlay. `/dev/sr0` and `/dev/loop0` at 100% are the read-only ISO and are always full; they are not the problem | Run **Install Ubuntu** from the live desktop, then `sudo poweroff` and remove the ISO |
+| Reboots into the installer | ISO still attached | Shut down fully, then VM → Edit → CD/DVD drive → Clear → Save |
 | `ImportError` mentioning NumPy, from `cv_bridge` | pip NumPy shadowing the system one | `pip uninstall numpy opencv-python`, then `sudo apt install --reinstall python3-numpy python3-opencv` |
 | `ModuleNotFoundError: pose3d` | The nodes cannot find the repo root | `export PENNAIR_ROOT=$HOME/pennair`, or pass `repo_root:=$HOME/pennair` to the launch file |
 | `package 'pennair_vision' not found` | Workspace not sourced in this terminal | `source ~/pennair/ros2_ws/install/setup.bash` |

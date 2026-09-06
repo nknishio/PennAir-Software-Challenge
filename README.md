@@ -111,7 +111,6 @@ observation drives everything:
 **Reports** — short: [`STATIC_IMAGE_REPORT.md`](STATIC_IMAGE_REPORT.md) ·
 [`VIDEO_REPORT.md`](VIDEO_REPORT.md) · [`BACKGROUND_AGNOSTIC.md`](BACKGROUND_AGNOSTIC.md)
 **Deep dives** — [`ALGORITHM.md`](ALGORITHM.md) · [`VIDEO_DETECTION.md`](VIDEO_DETECTION.md)
-**Talking it through out loud** — [`VIDEO_DETECTION_SIMPLE.md`](VIDEO_DETECTION_SIMPLE.md)
 
 The original detector is kept unchanged alongside the agnostic one. They are better at
 different jobs — see [trade-offs](#trade-offs-which-one-to-use).
