@@ -168,9 +168,9 @@ final = roi.copy()
 cv2.drawContours(final, [fin_contour], -1, (0, 255, 255), 3)
 
 cv2.imwrite(f"{OUT}/09_watershed.png", strip([
-    (seedvis, "1. rough seed (red)"),
-    (zones, "2. green=in  red=out  white=undecided"),
-    (final, "3. watershed's answer"),
+    (seedvis, "1. rough seed"),
+    (zones, "2. in / out / unknown"),
+    (final, "3. result"),
 ], w=330))
 
 # 10 -- why a rounded seed yields a sharp answer -----------------------------
@@ -190,9 +190,9 @@ cv2.drawContours(both, start_cnts, -1, (60, 255, 60), 2)   # where the water beg
 cv2.drawContours(both, [fin_contour], -1, (0, 255, 255), 2)  # where it stopped
 
 cv2.imwrite(f"{OUT}/10_flood.png", strip([
-    (start, "1. where water starts (green)"),
-    (tv, "2. the terrain: bright = ridge"),
-    (both, "3. green -> yellow (where it stopped)"),
+    (start, "1. flood start"),
+    (tv, "2. terrain (bright = ridge)"),
+    (both, "3. where it stopped"),
 ], w=330))
 
 # 11 -- the background-agnosticism suite -------------------------------------
