@@ -25,7 +25,7 @@ Two things ROS adds that the CLI could not demonstrate:
   * Intrinsics arrive on a topic, so the detector is not told in advance what
     resolution or calibration it is working with.
 
-Positions are published in meterS in the camera optical frame (REP-103). The
+Positions are published in METERS in the camera optical frame (REP-103). The
 algorithm works in inches; the conversion happens at the publish boundary and
 nowhere else.
 """
@@ -74,7 +74,8 @@ class ShapeDetector(Node):
         self.frame_idx = 0
         self.proc_ms = []
 
-        # Best-effort, depth 1, on both ends. The 3D pipeline runs at roughly
+        # The sensor-data QoS profile on both ends: best-effort, keep-last,
+        # depth 5. The 3D pipeline runs at roughly
         # 12 fps on a laptop and less in a VM, against a publisher that does not
         # wait for it. With this profile the node always works on the newest
         # frame and discards the backlog; with a reliable, deep queue it would

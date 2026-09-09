@@ -1,7 +1,7 @@
 # PennAir 2024 Software Challenge — Shape Detection
 
 Find shapes on a grassy background and mark their centres; track them through video; make it work
-on any background; report each centre in metres rather than pixels; expose it as ROS 2 nodes.
+on any background; report each centre in meters rather than pixels; expose it as ROS 2 nodes.
 
 Every number below regenerates from `python3 run_tests.py`. Figures measured against a
 non-reproducible oracle are excluded — see [Measurement provenance](#measurement-provenance).
@@ -53,7 +53,7 @@ ROS 2 needs a Linux environment — [`ROS2_SETUP.md`](ROS2_SETUP.md) builds one 
 
 ## Core principle
 
-The shapes cannot be separated by **colour**: the trapezoid is the same hue as the grass. They can
+The shapes cannot be separated by **color**: the trapezoid is the same hue as the grass. They can
 be separated by **texture**, because grass is thousands of tiny blades and the shapes are smooth.
 
 ![why texture](figures/01_why_texture.png)
@@ -63,7 +63,7 @@ be separated by **texture**, because grass is thousands of tiny blades and the s
 | Hue | ~60° | ~60° — **identical** |
 | Local intensity variation | 13.0 | **0.0** |
 
-The discriminator must not correlate with the target. Colour does here; texture does not.
+The discriminator must not correlate with the target. color does here; texture does not.
 
 ---
 
@@ -72,7 +72,7 @@ The discriminator must not correlate with the target. Colour does here; texture 
 ![pipeline](figures/02_static_pipeline.png)
 
 1. **Locate** by smoothness — per-pixel neighbourhood standard deviation via `Var(X) = E[X²] − E[X]²`, two box filters rather than a per-pixel loop. Threshold at `0.35 × median(σ)`, relative to the frame's own roughness, then clean up with morphology.
-2. **Sharpen** the outline — stage 1's boundary is inset ~5 px by the measuring window and rounded by morphology. Use the blurry region only to sample fill colour, then recover the boundary by colour distance against the original pixels.
+2. **Sharpen** the outline — stage 1's boundary is inset ~5 px by the measuring window and rounded by morphology. Use the blurry region only to sample fill color, then recover the boundary by color distance against the original pixels.
 3. **Centre** by image moments, `cx = M10/M00` — the true area centroid, not the bounding-box middle, which is visibly wrong for the triangle.
 4. **Classify** — circularity `4πA/P²` finds the circle; a sweep of `approxPolyDP` tolerances votes on vertex count; opposite side lengths separate rectangle from trapezoid.
 
@@ -89,7 +89,7 @@ The discriminator must not correlate with the target. Colour does here; texture 
 | Problem | Cause | Fix |
 |---|---|---|
 | **Otsu returned zero shapes** | Otsu needs two comparably-sized classes; the shapes are ~5% of the frame, so it split the *grass* distribution and called the lawn flat | Threshold relative to the background's own roughness: `0.35 × median(σ)`. Self-calibrating, so it also survives different lighting |
-| **Triangle classified as "trapezoid"** | Morphology rounded its corners, so `approxPolyDP` invented vertices | The colour-refinement stage exists because of this |
+| **Triangle classified as "trapezoid"** | Morphology rounded its corners, so `approxPolyDP` invented vertices | The color-refinement stage exists because of this |
 | **Circle test had a 0.05 margin** | A regular pentagon's ideal circularity is 0.865 — *above* the 0.85 threshold. It only worked because rasterised contours measure rounder than ideal | Added an independent signal: a circle's vertex count never settles (11/18 agreement), a polygon's is unanimous (18/18) |
 | **Areas ~20% too small** | Measured on the pre-refinement region | Measure the refined contour. Caught by sanity-checking areas against visible pixel dimensions |
 
@@ -120,7 +120,7 @@ path.
 ![occlusion](figures/03_occlusion.png)
 
 Overlapping shapes are both smooth, so the texture stage sees one region. They are different
-*colours*, and stage 2 already samples fill colour, so dropping the one-colour-per-blob assumption
+*colors*, and stage 2 already samples fill color, so dropping the one-color-per-blob assumption
 splits them (k-means, guarded so a single shape is never split). That recovers two centres but not
 the rectangle's identity — with a bite taken out of it, its visible outline *is* a five-sided
 polygon.
@@ -149,9 +149,9 @@ No accuracy was traded for speed; the removed work was not contributing to the r
 
 | Problem | Cause | Fix |
 |---|---|---|
-| **Found 3 of 5 shapes** | Overlapping shapes merged into one blob | Split merged blobs by fill colour |
-| **47 tracks for 5 shapes** | Matching on position alone. An occluded shape's centroid *lurches*, and a lurch past the gate makes the tracker drop and re-acquire it | Match on position **and** colour. Colour is untouched by occlusion, so it holds identity exactly when position becomes unreliable → 29 tracks |
-| **Ragged trapezoid → "hexagon"** | Its olive fill sits 80 units from grass in colour space (others 180–260), so grass pixels leak through and fray the outline | The leak is *speckle*, the shape is *solid* — a morphological opening removes one and keeps the other. A tighter colour threshold was tried and measured; it did not help |
+| **Found 3 of 5 shapes** | Overlapping shapes merged into one blob | Split merged blobs by fill color |
+| **47 tracks for 5 shapes** | Matching on position alone. An occluded shape's centroid *lurches*, and a lurch past the gate makes the tracker drop and re-acquire it | Match on position **and** color. color is untouched by occlusion, so it holds identity exactly when position becomes unreliable → 29 tracks |
+| **Ragged trapezoid → "hexagon"** | Its olive fill sits 80 units from grass in color space (others 180–260), so grass pixels leak through and fray the outline | The leak is *speckle*, the shape is *solid* — a morphological opening removes one and keeps the other. A tighter color threshold was tried and measured; it did not help |
 | **Ran at 7 fps** | Both hotspots were somewhere other than expected | Profile, then fix — see above |
 | **Phantom tracks drifting off-screen** | Coasting tracks predicted out to x = 2322 on a 1920-wide frame | Retire a track once its predicted position leaves the frame |
 
@@ -190,17 +190,17 @@ blurred copy first: a gradient survives a blur and cancels; texture does not.
 |---|---|---|
 | Background is textured | Texture cue **+** an enclosure cue | A smooth background has no texture to contrast against |
 | Shapes are flat | High-frequency residual | Works for flat *and* gradient fills |
-| One fill colour per shape | **Watershed** on the image gradient | Needs no colour model |
-| Colour clustering to split overlaps | **Distance-transform maxima** | A gradient has more internal colour spread than the gap between two shapes |
-| Mean colour for track identity | **Colour histogram** | Records *which* colours are present instead of averaging them away |
+| One fill color per shape | **Watershed** on the image gradient | Needs no color model |
+| color clustering to split overlaps | **Distance-transform maxima** | A gradient has more internal color spread than the gap between two shapes |
+| Mean color for track identity | **color histogram** | Records *which* colors are present instead of averaging them away |
 
 The organising principle is **pairs of cues that fail in opposite circumstances**, with the
 detector choosing between them from measurements rather than from a setting.
 
 ### Watershed refinement
 
-Colour thresholding is replaced by a watershed flood. Markers declare what is certainly inside and
-certainly outside; the image decides the boundary between them. No fill-colour model is needed,
+color thresholding is replaced by a watershed flood. Markers declare what is certainly inside and
+certainly outside; the image decides the boundary between them. No fill-color model is needed,
 which is what makes it work on the gradient-filled pentagon below.
 
 ![watershed refinement](figures/09_watershed.png)
@@ -219,7 +219,7 @@ gradient fills. Ground truth is exact because the scene is generated, and each t
 read back from that shape's own rendered mask rather than the anchor it was drawn around.
 
 **Recall 97.8% (88/90) · 0 misclassifications · mean centre error 0.3 px**, on one unchanged
-parameter set covering solid colours, gradients, sand, gravel, grass, wood grain and a
+parameter set covering solid colors, gradients, sand, gravel, grass, wood grain and a
 checkerboard. The 13 false positives are all checkerboard cells.
 
 On the hard footage: **4.85 shapes tracked per frame** with all five named correctly.
@@ -395,20 +395,20 @@ callback is the same shape, so the detector node's body is six lines lifted verb
 | `/shapes/markers` | `visualization_msgs/MarkerArray` | centres, labels and **outlines in 3D** |
 | `/shapes/image_annotated` | `sensor_msgs/Image` | the overlay |
 
-Positions are in **metres** (REP-103); the algorithm works in inches and converts at the publish
+Positions are in **meters** (REP-103); the algorithm works in inches and converts at the publish
 boundary only. The outline is the refined contour, not a polygon approximation — and for RViz
 those points are back-projected onto the plane, which is exact because the plane is
-fronto-parallel, so the marker is the shape's real outline in metres.
+fronto-parallel, so the marker is the shape's real outline in meters.
 
 **Intrinsics travel on a topic**, so the detector is not told in advance what calibration it has.
 That is idiomatic ROS and it removes a failure mode: `scale:=0.5` downsamples frames for VM
 bandwidth, and intrinsics are in pixels, so a resized image needs a resized K.
 
-**Frame dropping is intended.** Both subscriptions use best-effort, depth-1 QoS. The 3D pipeline
-runs ~12 fps against a publisher that does not wait, so the node always works on the newest frame.
-A reliable, deep queue would accumulate unbounded lag and report positions for a scene that had
-moved on. This is also the first time the streaming contract is *tested* rather than merely
-respected.
+**Frame dropping is intended.** Both subscriptions use the sensor-data QoS profile — best-effort,
+keep-last, depth 5. The 3D pipeline runs ~12 fps against a publisher that does not wait, so the
+node always works on the newest frame. A reliable, deep queue would accumulate unbounded lag and
+report positions for a scene that had moved on. This is also the first time the streaming contract
+is *tested* rather than merely respected.
 
 Verification: `plane_depth` on `/shapes/detections` must read **≈ 6.39 m** — the same distance as
 the CLI's 251.74 in. Disagreement points at the ROS layer's K scaling or unit conversion, not the
@@ -457,7 +457,7 @@ Each figure is listed with the data it came from and its truth source.
 | shapes tracked/frame, ID counts, timings | full videos | direct measurement |
 
 **Deliberately absent.** Earlier work measured recall 98.0%, classification 98.8% and centre error
-2.0 px on the videos against a second, colour-matching detector used as an oracle, on 74 frames of
+2.0 px on the videos against a second, color-matching detector used as an oracle, on 74 frames of
 1837. Those figures are quoted in [`DESIGN.md`](DESIGN.md) but not here, because the oracle script
 is not in this repository, the numbers describe *agreement* between two algorithms rather than
 accuracy, and they predate a later change to the agnostic detector. Reproducing them needs the
@@ -485,7 +485,7 @@ quality stay independently testable.
 ## Limitations
 
 - Occluded classification needs a prior clean view of the shape.
-- Two same-coloured shapes crossing could swap IDs.
+- Two same-colored shapes crossing could swap IDs.
 - Constant-velocity motion model: a sharp turn during a long occlusion is mispredicted.
 - Occlusion tolerance caps at ~0.7 s, after which a track retires and returns with a new ID.
 - The convex-hull occlusion recovery assumes convex shapes — true of all five here.

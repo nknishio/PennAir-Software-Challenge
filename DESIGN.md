@@ -5,7 +5,7 @@
 >
 > **One caveat on numbers.** This document quotes video-footage metrics (recall 98.0%,
 > classification 98.8%, centre error 2.0 px, and the hard video's 93.3% / 89.3%) that were
-> measured against a colour-matching oracle on 74 of 1837 frames. That oracle is not in this
+> measured against a color-matching oracle on 74 of 1837 frames. That oracle is not in this
 > repository, so those figures cannot be regenerated, and they predate a later change to the
 > agnostic detector. `README.md` reports only what `run_tests.py` reproduces.
 
@@ -666,7 +666,8 @@ the bandwidth — and intrinsics are measured *in pixels*, so a resized image ne
 about to send. Without it, half-scale streaming would report every shape at twice its distance
 and nothing would look obviously broken.
 
-**Dropping frames is the correct behaviour.** Both subscriptions use best-effort, depth-1 QoS.
+**Dropping frames is the correct behaviour.** Both subscriptions use the sensor-data QoS
+profile: best-effort, keep-last, depth 5.
 The 3D pipeline runs ~12 fps against a publisher that does not wait for it, so the node always
 works on the newest frame and discards the backlog. A reliable, deep queue would instead
 accumulate unbounded lag and confidently report positions for a scene that had already moved
